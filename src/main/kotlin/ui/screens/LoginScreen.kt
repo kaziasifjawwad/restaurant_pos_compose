@@ -1,15 +1,18 @@
 import androidx.compose.foundation.layout.*
-import androidx.compose.material.*
+import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import data.auth.AuthManager
+import data.auth.UserState
 import data.network.ApiService
 import kotlinx.coroutines.launch
+import java.io.IOException
 
 @Composable
 fun LoginScreen(onLoginSuccess: () -> Unit) {
@@ -17,9 +20,19 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
     var password by remember { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
+
+    // Initialize ApiService and remember it
+    val apiService = remember {
+        ApiService()
+    }
     
-    val authManager = remember { AuthManager() }
-    val apiService = remember { ApiService() }
+    // Add to the composition's onDispose
+    DisposableEffect(apiService) {
+        onDispose {
+            apiService.close()
+        }
+    }
+    
     val coroutineScope = rememberCoroutineScope()
 
     Column(
@@ -32,7 +45,7 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
         Text(
             text = "Restaurant Management System",
             fontSize = 24.sp,
-            color = MaterialTheme.colors.primary,
+            color = MaterialTheme.colorScheme.primary,
             modifier = Modifier.padding(bottom = 32.dp)
         )
 
@@ -40,7 +53,7 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 32.dp),
-            elevation = 8.dp
+            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
         ) {
             Column(
                 modifier = Modifier.padding(24.dp),
@@ -92,20 +105,21 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
                         coroutineScope.launch {
                             try {
                                 val result = apiService.login(email, password)
-                                if (result.isSuccess) {
-                                    val response = result.getOrThrow()
+                                result.onSuccess { response ->
                                     if (response.jwtToken.isNotEmpty()) {
-                                        authManager.saveToken(response.jwtToken)
+                                        AuthManager.saveToken(response.jwtToken)
+                                        UserState.login(response)
                                         onLoginSuccess()
                                     } else {
                                         errorMessage = "Login failed: Invalid token received"
+                                        isLoading = false
                                     }
-                                } else {
-                                    errorMessage = "Login failed: ${result.exceptionOrNull()?.message}"
+                                }.onFailure { exception ->
+                                    errorMessage = exception.message
+                                    isLoading = false
                                 }
                             } catch (e: Exception) {
                                 errorMessage = "Login failed: ${e.message}"
-                            } finally {
                                 isLoading = false
                             }
                         }

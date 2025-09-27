@@ -18,6 +18,7 @@ import data.network.ApiService
 import kotlinx.coroutines.launch
 import ui.components.RestaurantTopAppBar
 import ui.components.SidebarMenu
+import ui.navigation.NavigationHost
 import ui.theme.ThemeState
 
 @Composable
@@ -75,7 +76,10 @@ fun MainScreen(onLogout: () -> Unit) {
                         .background(MaterialTheme.colorScheme.background)
                 ) {
                     selectedMenuItem?.let { menuItem ->
-                        PlaceholderScreen(menuItem = menuItem)
+                        NavigationHost(
+                            currentMenuCode = menuItem.menuCode,
+                            currentMenuItem = menuItem
+                        )
                     } ?: run {
                         WelcomeScreen()
                     }

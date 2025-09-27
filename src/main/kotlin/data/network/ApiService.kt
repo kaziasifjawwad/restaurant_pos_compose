@@ -37,41 +37,7 @@ import java.net.UnknownHostException
 class ApiService : AutoCloseable {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     
-    private val client = HttpClient {
-        install(ContentNegotiation) {
-            json(Json {
-                ignoreUnknownKeys = true
-                prettyPrint = true
-                isLenient = true
-            })
-        }
-        
-        install(HttpTimeout) {
-            requestTimeoutMillis = 15000
-            connectTimeoutMillis = 15000
-            socketTimeoutMillis = 15000
-        }
-        
-        install(Logging) {
-            logger = object : Logger {
-                override fun log(message: String) {
-                    println("HTTP Client: $message")
-                }
-            }
-            level = LogLevel.ALL
-        }
-        
-        expectSuccess = false
-        
-        HttpResponseValidator {
-            validateResponse { response ->
-                when (response.status.value) {
-                    in 400..499 -> throw ClientRequestException(response, "Client error: ${response.status}")
-                    in 500..599 -> throw ServerResponseException(response, "Server error: ${response.status}")
-                }
-            }
-        }
-    }
+    private val client = HttpClientProvider.client
 
     companion object {
         private const val BASE_URL = "http://localhost:8080"
@@ -153,7 +119,6 @@ class ApiService : AutoCloseable {
     }
 
     override fun close() {
-        client.close()
         scope.cancel()
     }
 }

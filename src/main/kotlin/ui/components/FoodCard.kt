@@ -14,7 +14,9 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Restaurant
+import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -38,7 +40,8 @@ import java.text.DecimalFormat
 fun FoodCard(
     foodItem: FoodItemResponse,
     modifier: Modifier = Modifier,
-    onClick: (() -> Unit)? = null
+    onView: ((Long) -> Unit)? = null,
+    onEdit: ((Long) -> Unit)? = null
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val isHovered by interactionSource.collectIsHoveredAsState()
@@ -66,7 +69,7 @@ fun FoodCard(
         modifier = modifier
             .padding(8.dp)
             .fillMaxWidth()
-            .height(240.dp)
+            .height(280.dp) // Increased height for action buttons
             .hoverable(interactionSource)
             .graphicsLayer {
                 scaleX = scale
@@ -175,7 +178,104 @@ fun FoodCard(
                     .weight(1f)
                     .padding(horizontal = 12.dp, vertical = 8.dp)
             )
+            
+            // Action Buttons
+            if (onView != null || onEdit != null) {
+                HorizontalDivider(
+                    modifier = Modifier.padding(horizontal = 12.dp),
+                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                )
+                
+                ActionButtonsRow(
+                    onView = onView?.let { { it(foodItem.id) } },
+                    onEdit = onEdit?.let { { it(foodItem.id) } }
+                )
+            }
         }
+    }
+}
+
+@Composable
+private fun ActionButtonsRow(
+    onView: (() -> Unit)?,
+    onEdit: (() -> Unit)?
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        // View Button
+        if (onView != null) {
+            ActionButton(
+                onClick = onView,
+                icon = Icons.Default.Visibility,
+                label = "View",
+                containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                modifier = Modifier.weight(1f)
+            )
+        }
+        
+        // Edit Button
+        if (onEdit != null) {
+            ActionButton(
+                onClick = onEdit,
+                icon = Icons.Default.Edit,
+                label = "Edit",
+                containerColor = MaterialTheme.colorScheme.primaryContainer,
+                contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                modifier = Modifier.weight(1f)
+            )
+        }
+    }
+}
+
+@Composable
+private fun ActionButton(
+    onClick: () -> Unit,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    containerColor: Color,
+    contentColor: Color,
+    modifier: Modifier = Modifier
+) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val isHovered by interactionSource.collectIsHoveredAsState()
+    
+    val scale by animateFloatAsState(
+        targetValue = if (isHovered) 1.05f else 1f,
+        animationSpec = tween(AppAnimations.DURATION_FAST)
+    )
+    
+    FilledTonalButton(
+        onClick = onClick,
+        modifier = modifier
+            .height(36.dp)
+            .hoverable(interactionSource)
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+            },
+        shape = RoundedCornerShape(8.dp),
+        colors = ButtonDefaults.filledTonalButtonColors(
+            containerColor = containerColor,
+            contentColor = contentColor
+        ),
+        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp)
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            modifier = Modifier.size(16.dp)
+        )
+        Spacer(modifier = Modifier.width(6.dp))
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.Medium
+        )
     }
 }
 

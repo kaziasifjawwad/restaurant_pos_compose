@@ -11,7 +11,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
-import androidx.compose.material.icons.outlined.FilterList
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.*
@@ -32,14 +31,22 @@ import ui.theme.AppAnimations
 import ui.theme.ExtendedTypography
 import ui.viewmodel.FoodItemState
 
+/**
+ * Screen for displaying list of food items with CRUD operations
+ */
 @Composable
-fun FoodItemListScreen() {
+fun FoodItemListScreen(
+    onNavigateToCreate: () -> Unit = {},
+    onNavigateToView: (Long) -> Unit = {},
+    onNavigateToEdit: (Long) -> Unit = {}
+) {
     // Use shared API (uses HttpClientProvider internally)
     val api = remember { FoodItemApiService() }
     val state = remember { FoodItemState(api) }
     var isContentVisible by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) { 
+        println("[FoodItemListScreen] Loading initial page")
         state.loadPage(0, 20)
         delay(100)
         isContentVisible = true
@@ -57,7 +64,14 @@ fun FoodItemListScreen() {
                 TopBar(
                     filterText = state.filterText,
                     onFilterChange = { state.applyFilter(it) },
-                    onRefresh = { state.refresh() }
+                    onRefresh = { 
+                        println("[FoodItemListScreen] Refreshing...")
+                        state.refresh() 
+                    },
+                    onCreateNew = {
+                        println("[FoodItemListScreen] Navigating to create")
+                        onNavigateToCreate()
+                    }
                 )
             }
         },
@@ -75,6 +89,14 @@ fun FoodItemListScreen() {
                     onPrev = { state.previousPage() },
                     onNext = { state.nextPage() }
                 )
+            }
+        },
+        floatingActionButton = {
+            AnimatedVisibility(
+                visible = isContentVisible,
+                enter = scaleIn(animationSpec = tween(AppAnimations.DURATION_NORMAL)) + fadeIn()
+            ) {
+                CreateFAB(onClick = onNavigateToCreate)
             }
         }
     ) { paddingValues ->
@@ -106,11 +128,55 @@ fun FoodItemListScreen() {
                         visible = isContentVisible,
                         enter = fadeIn(animationSpec = tween(AppAnimations.DURATION_ENTRANCE))
                     ) {
-                        FoodGrid(items = state.filteredFoodItems())
+                        FoodGrid(
+                            items = state.filteredFoodItems(),
+                            onView = { id ->
+                                println("[FoodItemListScreen] Viewing item id=$id")
+                                onNavigateToView(id)
+                            },
+                            onEdit = { id ->
+                                println("[FoodItemListScreen] Editing item id=$id")
+                                onNavigateToEdit(id)
+                            }
+                        )
                     }
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun CreateFAB(onClick: () -> Unit) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val isHovered by interactionSource.collectIsHoveredAsState()
+    
+    val scale by animateFloatAsState(
+        targetValue = if (isHovered) 1.1f else 1f,
+        animationSpec = tween(AppAnimations.DURATION_FAST)
+    )
+    
+    ExtendedFloatingActionButton(
+        onClick = onClick,
+        modifier = Modifier
+            .hoverable(interactionSource)
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+            },
+        containerColor = MaterialTheme.colorScheme.primary,
+        contentColor = MaterialTheme.colorScheme.onPrimary,
+        shape = RoundedCornerShape(16.dp)
+    ) {
+        Icon(
+            imageVector = Icons.Default.Add,
+            contentDescription = null
+        )
+        Spacer(modifier = Modifier.width(8.dp))
+        Text(
+            text = "Create New",
+            style = ExtendedTypography.buttonText
+        )
     }
 }
 
@@ -201,7 +267,8 @@ private fun ErrorContent(
 private fun TopBar(
     filterText: String,
     onFilterChange: (String) -> Unit,
-    onRefresh: () -> Unit
+    onRefresh: () -> Unit,
+    onCreateNew: () -> Unit
 ) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
@@ -323,7 +390,11 @@ private fun RefreshButton(onClick: () -> Unit) {
 }
 
 @Composable
-private fun FoodGrid(items: List<FoodItemResponse>) {
+private fun FoodGrid(
+    items: List<FoodItemResponse>,
+    onView: (Long) -> Unit,
+    onEdit: (Long) -> Unit
+) {
     if (items.isEmpty()) {
         EmptyState()
         return
@@ -366,7 +437,11 @@ private fun FoodGrid(items: List<FoodItemResponse>) {
                                     ),
                                 modifier = Modifier.weight(1f)
                             ) {
-                                FoodCard(foodItem = food)
+                                FoodCard(
+                                    foodItem = food,
+                                    onView = onView,
+                                    onEdit = onEdit
+                                )
                             }
                         }
                         repeat(columns - rowItems.size) { 
@@ -374,6 +449,11 @@ private fun FoodGrid(items: List<FoodItemResponse>) {
                         }
                     }
                 }
+            }
+            
+            // Bottom padding for FAB
+            item {
+                Spacer(modifier = Modifier.height(80.dp))
             }
         }
     }

@@ -3,9 +3,6 @@ package ui.screens.pos
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
-import androidx.compose.foundation.hoverable
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -25,6 +22,8 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import data.model.*
 import kotlinx.coroutines.delay
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
 import ui.theme.AppAnimations
 import ui.theme.ExtendedTypography
 import ui.viewmodel.PosUiEvent
@@ -246,6 +245,16 @@ fun PosOrderEditorScreen(
                 )
             }
         )
+
+        val json = Json {
+            prettyPrint = true
+            encodeDefaults = true
+        }
+
+        println(json.encodeToString(request))
+
+
+
         viewModel.onEvent(PosUiEvent.SaveOrder(request))
     }
 

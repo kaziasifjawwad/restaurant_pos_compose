@@ -75,7 +75,7 @@ data class FoodOrder(
     val discountType: DiscountType? = null,
     val discount: Double = 0.0,
     val foodQuantity: Int = 1,
-    val itemNumber: Int = 0
+    val itemNumber: Short = 0
 )
 
 /**
@@ -116,7 +116,7 @@ data class FoodOrderByCustomerRequest(
  */
 @Serializable
 data class FoodOrderRequest(
-    val itemNumber: Int,
+    val itemNumber: Short,
     val foodSize: FoodSize,
     val foodQuantity: Int = 1,
     val discount: Double = 0.0,
@@ -129,8 +129,8 @@ data class FoodOrderRequest(
 @Serializable
 data class BeverageOrderRequest(
     val beverageId: Long,
-    val quantity: Double,
     val amount: Int = 1,
+    val quantity: Double,
     val unit: QuantityUnit,
     val discount: Double = 0.0,
     val discountType: DiscountType = DiscountType.PERCENTAGE
@@ -183,7 +183,7 @@ data class PageTableResponse(
 data class FoodItemShortInfo(
     val id: Long,
     val name: String,
-    val itemNumber: Int,
+    val itemNumber: Short,
     val foodPrices: List<FoodPriceInfo> = emptyList()
 )
 

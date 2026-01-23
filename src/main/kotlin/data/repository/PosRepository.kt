@@ -234,7 +234,7 @@ class PosRepository(
     /**
      * Get food item by item number
      */
-    fun getFoodItemByNumber(itemNumber: Int): FoodItemShortInfo? {
+    fun getFoodItemByNumber(itemNumber: Short): FoodItemShortInfo? {
         return _foodItemsCache.value.find { it.itemNumber == itemNumber }
     }
 

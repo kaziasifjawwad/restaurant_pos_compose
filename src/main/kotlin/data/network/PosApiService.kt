@@ -181,21 +181,34 @@ class PosApiService(
 
     /**
      * Get food items short info for order editor
-     * GET /food/item/short-info?unpaged=true
+     * GET /food/item?unpaged=true
      */
     suspend fun getFoodItemsShortInfo(): Result<List<FoodItemShortInfo>> {
         println("[$TAG] getFoodItemsShortInfo")
         return executeRequest {
             val token = requireToken()
-            val response: HttpResponse = client.get("$baseUrl/food/item/short-info") {
+            val response: HttpResponse = client.get("$baseUrl/food/item") {
                 header(HttpHeaders.Authorization, "Bearer $token")
                 accept(ContentType.Application.Json)
                 url {
                     parameters.append("unpaged", "true")
                 }
             }
-            val pageResponse = handleResponse<PageFoodItemShortInfoResponse>(response, "Failed to load food items")
-            pageResponse.content
+            val pageResponse = handleResponse<PageFoodItemResponse>(response, "Failed to load food items")
+            // Map FoodItemResponse to FoodItemShortInfo
+            pageResponse.content.map { item ->
+                FoodItemShortInfo(
+                    id = item.id,
+                    name = item.name,
+                    itemNumber = item.itemNumber.toShort(),
+                    foodPrices = item.foodPrices.map { price ->
+                        FoodPriceInfo(
+                            foodSize = price.foodSize,
+                            foodPrice = price.foodPrice
+                        )
+                    }
+                )
+            }
         }
     }
 

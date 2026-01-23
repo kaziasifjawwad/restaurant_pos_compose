@@ -66,6 +66,7 @@ sealed class PosUiEvent {
     data class CancelOrder(val orderId: Long) : PosUiEvent()
     
     // Error handling
+    data class ShowError(val message: String) : PosUiEvent()
     object ClearError : PosUiEvent()
     object ClearSuccess : PosUiEvent()
 }
@@ -156,6 +157,7 @@ class PosViewModel(
             is PosUiEvent.PrintBill -> printBill(event.orderId)
             is PosUiEvent.MarkPaid -> markPaid(event.orderId)
             is PosUiEvent.CancelOrder -> cancelOrder(event.orderId)
+            is PosUiEvent.ShowError -> showError(event.message)
             is PosUiEvent.ClearError -> clearError()
             is PosUiEvent.ClearSuccess -> clearSuccess()
         }
@@ -324,6 +326,10 @@ class PosViewModel(
 
     // ==================== Error/Success ====================
 
+    private fun showError(message: String) {
+        _uiState.update { it.copy(errorMessage = message) }
+    }
+
     private fun clearError() {
         _uiState.update { it.copy(errorMessage = null) }
     }
@@ -365,7 +371,7 @@ class PosViewModel(
     /**
      * Get food item by number from cache
      */
-    fun getFoodItemByNumber(itemNumber: Int): FoodItemShortInfo? {
+    fun getFoodItemByNumber(itemNumber: Short): FoodItemShortInfo? {
         return repository.getFoodItemByNumber(itemNumber)
     }
 

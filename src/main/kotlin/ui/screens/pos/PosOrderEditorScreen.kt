@@ -116,31 +116,78 @@ fun PosOrderEditorScreen(
         }
     }
 
-    fun addFoodItem() {
-        val parts = foodSerialInput.trim().split("*", " ")
-        val itemNumber = parts.getOrNull(0)?.toIntOrNull() ?: return
-        val quantity = parts.getOrNull(1)?.toIntOrNull() ?: 1
-
-        val foodItem = viewModel.getFoodItemByNumber(itemNumber)
-        if (foodItem != null) {
-            val priceInfo = foodItem.foodPrices.find { it.foodSize == selectedFoodSize }
-            if (priceInfo != null) {
-                // Remove existing if same item and size
-                foodOrders = foodOrders.filter { 
-                    !(it.itemNumber == itemNumber && it.foodSize == selectedFoodSize) 
-                }
-                foodOrders = foodOrders + FoodOrderEntry(
-                    itemNumber = itemNumber,
-                    foodName = foodItem.name,
-                    foodSize = selectedFoodSize,
-                    quantity = quantity,
-                    price = priceInfo.foodPrice,
-                    discount = 0.0,
-                    discountType = DiscountType.PERCENTAGE
-                )
-                foodSerialInput = ""
-            }
+    // Auto-dismiss error messages after 3 seconds
+    LaunchedEffect(uiState.errorMessage) {
+        if (uiState.errorMessage != null) {
+            delay(3000)
+            viewModel.onEvent(PosUiEvent.ClearError)
         }
+    }
+
+    fun addFoodItem() {
+        val textRepresentation = foodSerialInput.trim()
+        if (textRepresentation.isBlank()) {
+            viewModel.onEvent(PosUiEvent.ShowError("Please enter item number"))
+            return
+        }
+        
+        // Pattern: supports "1", "1*3", "1 2*3" (multiple items separated by space)
+        val regexPattern = "^(?:\\d+|(?:\\d+\\s*\\*\\s*\\d+))(?:\\s+(?:\\d+|(?:\\d+\\s*\\*\\s*\\d+)))*$"
+        if (!textRepresentation.matches(Regex(regexPattern))) {
+            viewModel.onEvent(PosUiEvent.ShowError("Invalid pattern. Use: 1 or 1*3 or 1 2*3"))
+            return
+        }
+        
+        // Parse input: split by space, then by *
+        val orderItems = textRepresentation.split(" ").map { it.split("*") }
+        
+        orderItems.forEach { order ->
+            val itemNumber: Short
+            val quantity: Int
+            
+            try {
+                if (order.size == 1) {
+                    itemNumber = order[0].toShort()
+                    quantity = 1
+                } else {
+                    itemNumber = order[0].toShort()
+                    quantity = order[1].toInt()
+                }
+            } catch (e: NumberFormatException) {
+                viewModel.onEvent(PosUiEvent.ShowError("Invalid number format"))
+                return@forEach
+            }
+            
+            val foodItem = viewModel.getFoodItemByNumber(itemNumber)
+            if (foodItem == null) {
+                viewModel.onEvent(PosUiEvent.ShowError("Item #$itemNumber not found"))
+                return@forEach
+            }
+            
+            val priceInfo = foodItem.foodPrices.find { it.foodSize == selectedFoodSize }
+            if (priceInfo == null) {
+                viewModel.onEvent(PosUiEvent.ShowError("${foodItem.name} is not available in ${selectedFoodSize.name} size"))
+                return@forEach
+            }
+            
+            // Remove existing if same item and size (like JavaFX validateExistingFoodItem)
+            foodOrders = foodOrders.filter { 
+                !(it.itemNumber == itemNumber && it.foodSize == selectedFoodSize) 
+            }
+            
+            val totalPriceForItem = priceInfo.foodPrice * quantity
+            foodOrders = foodOrders + FoodOrderEntry(
+                itemNumber = itemNumber,
+                foodName = foodItem.name,
+                foodSize = selectedFoodSize,
+                quantity = quantity,
+                price = priceInfo.foodPrice,
+                discount = 0.0,
+                discountType = DiscountType.PERCENTAGE
+            )
+        }
+        
+        foodSerialInput = ""
     }
 
     fun addBeverageItem() {
@@ -191,8 +238,8 @@ fun PosOrderEditorScreen(
             beverageOrders = beverageOrders.map { bo ->
                 BeverageOrderRequest(
                     beverageId = bo.beverageId,
-                    quantity = bo.quantity,
                     amount = bo.amount,
+                    quantity = bo.quantity,
                     unit = bo.unit,
                     discount = bo.discount,
                     discountType = bo.discountType
@@ -372,7 +419,7 @@ fun PosOrderEditorScreen(
                                     OutlinedTextField(
                                         value = foodSerialInput,
                                         onValueChange = { foodSerialInput = it },
-                                        label = { Text("Item # or #*qty") },
+                                        label = { Text("Item # or 1*3 or 1 2*3") },
                                         modifier = Modifier.weight(1f),
                                         singleLine = true,
                                         shape = RoundedCornerShape(10.dp)
@@ -508,7 +555,7 @@ fun PosOrderEditorScreen(
 
 // Entry classes for editor state
 private data class FoodOrderEntry(
-    val itemNumber: Int,
+    val itemNumber: Short,
     val foodName: String,
     val foodSize: FoodSize,
     val quantity: Int,

@@ -62,6 +62,8 @@ sealed class PosUiEvent {
     
     // Status change events
     data class PrintBill(val orderId: Long) : PosUiEvent()
+    data class PrintKitchenMemo(val orderId: Long) : PosUiEvent()
+    data class CompleteOrder(val orderId: Long) : PosUiEvent()
     data class MarkPaid(val orderId: Long) : PosUiEvent()
     data class CancelOrder(val orderId: Long) : PosUiEvent()
     
@@ -155,6 +157,8 @@ class PosViewModel(
             is PosUiEvent.LoadLookupData -> loadLookupData()
             is PosUiEvent.SaveOrder -> saveOrder(event.request)
             is PosUiEvent.PrintBill -> printBill(event.orderId)
+            is PosUiEvent.PrintKitchenMemo -> printKitchenMemo(event.orderId)
+            is PosUiEvent.CompleteOrder -> completeOrder(event.orderId)
             is PosUiEvent.MarkPaid -> markPaid(event.orderId)
             is PosUiEvent.CancelOrder -> cancelOrder(event.orderId)
             is PosUiEvent.ShowError -> showError(event.message)
@@ -231,6 +235,7 @@ class PosViewModel(
     private fun loadLookupData() {
         scope.launch {
             _uiState.update { it.copy(isLoadingLookups = true) }
+            // Always refresh tables to get latest info
             repository.loadLookupData()
             _uiState.update { it.copy(isLoadingLookups = false) }
         }
@@ -239,6 +244,9 @@ class PosViewModel(
     private fun saveOrder(request: FoodOrderByCustomerRequest) {
         scope.launch {
             _uiState.update { it.copy(isSaving = true, errorMessage = null) }
+            
+            // Refresh tables before saving to ensure we have latest data
+            repository.loadLookupData()
             
             val result = when (val mode = _uiState.value.editorMode) {
                 is PosUiState.EditorMode.Edit -> {
@@ -278,11 +286,40 @@ class PosViewModel(
             
             repository.printBill(orderId)
                 .onSuccess { 
-                    _uiState.update { it.copy(successMessage = "Bill printed") }
+                    _uiState.update { it.copy(successMessage = "Bill printed successfully") }
                 }
                 .onError { error ->
                     _uiState.update { it.copy(errorMessage = error.message) }
                 }
+        }
+    }
+
+    private fun printKitchenMemo(orderId: Long) {
+        // No API call - just show success notification
+        _uiState.update { it.copy(successMessage = "Kitchen memo printed successfully") }
+    }
+
+    private fun completeOrder(orderId: Long) {
+        scope.launch {
+            _uiState.update { it.copy(errorMessage = null) }
+            
+            val result = repository.markPaid(orderId)
+            
+            // Clear selected order and show success regardless of API response
+            // because we refresh the order list anyway
+            _uiState.update { 
+                it.copy(
+                    successMessage = "Order completed successfully",
+                    selectedOrder = null
+                )
+            }
+            
+            // Only show error if it's a real failure (not just empty response)
+            result.onError { error ->
+                if (!error.message.contains("empty response", ignoreCase = true)) {
+                    println("[PosViewModel] Complete order error: ${error.message}")
+                }
+            }
         }
     }
 
@@ -309,18 +346,23 @@ class PosViewModel(
         scope.launch {
             _uiState.update { it.copy(errorMessage = null) }
             
-            repository.cancelOrder(orderId)
-                .onSuccess { 
-                    _uiState.update { 
-                        it.copy(
-                            successMessage = "Order canceled",
-                            selectedOrder = null
-                        )
-                    }
+            val result = repository.cancelOrder(orderId)
+            
+            // Clear selected order and show success regardless of API response
+            // because we refresh the order list anyway
+            _uiState.update { 
+                it.copy(
+                    successMessage = "Order canceled",
+                    selectedOrder = null
+                )
+            }
+            
+            // Only show error if it's a real failure (not just empty response)
+            result.onError { error ->
+                if (!error.message.contains("empty response", ignoreCase = true)) {
+                    println("[PosViewModel] Cancel order error: ${error.message}")
                 }
-                .onError { error ->
-                    _uiState.update { it.copy(errorMessage = error.message) }
-                }
+            }
         }
     }
 

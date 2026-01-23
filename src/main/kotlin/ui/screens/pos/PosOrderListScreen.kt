@@ -77,14 +77,6 @@ fun PosOrderListScreen(
                     onCreateNew = onNavigateToCreate
                 )
             }
-        },
-        floatingActionButton = {
-            AnimatedVisibility(
-                visible = isContentVisible,
-                enter = scaleIn(animationSpec = tween(AppAnimations.DURATION_NORMAL)) + fadeIn()
-            ) {
-                PosCreateFAB(onClick = onNavigateToCreate)
-            }
         }
     ) { paddingValues ->
         Box(

@@ -400,53 +400,112 @@ private fun PosDetailActionButtons(
         tableNumber = order.tableNumber
     )
 
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        // Print Bill button
-        if (viewModel.canPrintBill(orderShort)) {
-            Button(
-                onClick = { viewModel.onEvent(PosUiEvent.PrintBill(order.id)) },
-                modifier = Modifier.weight(1f),
-                shape = RoundedCornerShape(12.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.tertiary
-                )
+    // Show buttons based on order status
+    when (order.orderStatus) {
+        OrderStatus.ORDER_PLACED -> {
+            // Show Print Bill, Print Kitchen Memo, and Cancel
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Icon(Icons.Outlined.Print, null, Modifier.size(18.dp))
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("Print Bill")
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Button(
+                        onClick = { viewModel.onEvent(PosUiEvent.PrintBill(order.id)) },
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.tertiary
+                        )
+                    ) {
+                        Icon(Icons.Outlined.Print, null, Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Print Bill")
+                    }
+
+                    Button(
+                        onClick = { viewModel.onEvent(PosUiEvent.PrintKitchenMemo(order.id)) },
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.secondary
+                        )
+                    ) {
+                        Icon(Icons.Outlined.Restaurant, null, Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Kitchen Memo")
+                    }
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Button(
+                        onClick = { viewModel.onEvent(PosUiEvent.CompleteOrder(order.id)) },
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.primary
+                        )
+                    ) {
+                        Icon(Icons.Outlined.CheckCircle, null, Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Complete Order")
+                    }
+
+                    OutlinedButton(
+                        onClick = { viewModel.onEvent(PosUiEvent.CancelOrder(order.id)) },
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = MaterialTheme.colorScheme.error
+                        )
+                    ) {
+                        Icon(Icons.Outlined.Cancel, null, Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Cancel")
+                    }
+                }
             }
         }
-
-        // Mark Paid button
-        if (viewModel.canMarkPaid(orderShort)) {
-            Button(
-                onClick = { viewModel.onEvent(PosUiEvent.MarkPaid(order.id)) },
-                modifier = Modifier.weight(1f),
-                shape = RoundedCornerShape(12.dp)
+        OrderStatus.BILL_PRINTED -> {
+            // Show Complete Order and Cancel
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Icon(Icons.Outlined.CheckCircle, null, Modifier.size(18.dp))
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("Mark Paid")
+                Button(
+                    onClick = { viewModel.onEvent(PosUiEvent.CompleteOrder(order.id)) },
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primary
+                    )
+                ) {
+                    Icon(Icons.Outlined.CheckCircle, null, Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Complete Order")
+                }
+
+                OutlinedButton(
+                    onClick = { viewModel.onEvent(PosUiEvent.CancelOrder(order.id)) },
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = MaterialTheme.colorScheme.error
+                    )
+                ) {
+                    Icon(Icons.Outlined.Cancel, null, Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Cancel")
+                }
             }
         }
-
-        // Cancel button
-        if (viewModel.canCancelOrder(orderShort)) {
-            OutlinedButton(
-                onClick = { viewModel.onEvent(PosUiEvent.CancelOrder(order.id)) },
-                modifier = Modifier.weight(1f),
-                shape = RoundedCornerShape(12.dp),
-                colors = ButtonDefaults.outlinedButtonColors(
-                    contentColor = MaterialTheme.colorScheme.error
-                )
-            ) {
-                Icon(Icons.Outlined.Cancel, null, Modifier.size(18.dp))
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("Cancel")
-            }
+        else -> {
+            // No actions for PAID or CANCELED orders
         }
     }
 }
@@ -462,19 +521,25 @@ private fun PosOrderItemCard(
     val interactionSource = remember { MutableInteractionSource() }
     val isHovered by interactionSource.collectIsHoveredAsState()
 
-    val bgColor by animateColorAsState(
+    val elevation by animateDpAsState(
+        targetValue = if (isHovered) 4.dp else 1.dp,
+        animationSpec = tween(AppAnimations.DURATION_FAST)
+    )
+
+    val borderColor by animateColorAsState(
         targetValue = if (isHovered) 
-            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+            MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
         else 
-            MaterialTheme.colorScheme.surface,
+            MaterialTheme.colorScheme.outline.copy(alpha = 0.1f),
         animationSpec = tween(AppAnimations.DURATION_FAST)
     )
 
     Card(
         modifier = Modifier.fillMaxWidth().hoverable(interactionSource),
         shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = bgColor),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = elevation),
+        border = androidx.compose.foundation.BorderStroke(1.dp, borderColor)
     ) {
         Row(
             modifier = Modifier

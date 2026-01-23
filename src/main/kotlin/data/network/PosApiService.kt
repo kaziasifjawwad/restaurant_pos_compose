@@ -7,6 +7,7 @@ import io.ktor.client.call.body
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
 import io.ktor.http.*
+import kotlinx.serialization.json.Json
 
 /**
  * API Service for POS (Point of Sale) operations.
@@ -101,7 +102,7 @@ class PosApiService(
      * Set order status to ORDER_PLACED or BILL_PRINTED
      * PUT /pos/placed-or-bill-printed/{id}?orderStatus=...
      */
-    suspend fun setPlacedOrBillPrinted(id: Long, status: OrderStatus): Result<FoodOrderShortInfo> {
+    suspend fun setPlacedOrBillPrinted(id: Long, status: OrderStatus): Result<FoodOrderByCustomer> {
         require(status == OrderStatus.ORDER_PLACED || status == OrderStatus.BILL_PRINTED) {
             "Invalid status for placed-or-bill-printed: $status"
         }
@@ -115,7 +116,7 @@ class PosApiService(
                     parameters.append("orderStatus", status.name)
                 }
             }
-            handleResponse<FoodOrderShortInfo>(response, "Failed to update order status")
+            handleResponse<FoodOrderByCustomer>(response, "Failed to update order status")
         }
     }
 
@@ -123,7 +124,7 @@ class PosApiService(
      * Set order status to PAID or CANCELED
      * PUT /pos/paid-or-cancel/{id}?orderStatus=...
      */
-    suspend fun setPaidOrCancel(id: Long, status: OrderStatus): Result<FoodOrderShortInfo> {
+    suspend fun setPaidOrCancel(id: Long, status: OrderStatus): Result<FoodOrderByCustomer> {
         require(status == OrderStatus.PAID || status == OrderStatus.CANCELED) {
             "Invalid status for paid-or-cancel: $status"
         }
@@ -137,7 +138,7 @@ class PosApiService(
                     parameters.append("orderStatus", status.name)
                 }
             }
-            handleResponse<FoodOrderShortInfo>(response, "Failed to update order status")
+            handleResponse<FoodOrderByCustomer>(response, "Failed to update order status")
         }
     }
 
@@ -252,9 +253,31 @@ class PosApiService(
         errorPrefix: String
     ): T {
         println("[$TAG] Response status: ${response.status}")
+        println("[$TAG] Response Content-Type: ${response.contentType()}")
+        
         return when (response.status) {
             HttpStatusCode.OK, HttpStatusCode.Created -> {
-                response.body()
+                try {
+                    // Try normal deserialization first
+                    response.body()
+                } catch (e: Exception) {
+                    println("[$TAG] Normal deserialization failed: ${e.message}")
+                    // If Content-Type is missing, manually parse JSON
+                    try {
+                        val bodyText = response.bodyAsText()
+                        println("[$TAG] Response body: $bodyText")
+                        val json = Json {
+                            ignoreUnknownKeys = true
+                            isLenient = true
+                            encodeDefaults = true
+                            explicitNulls = false
+                        }
+                        json.decodeFromString<T>(bodyText)
+                    } catch (parseError: Exception) {
+                        println("[$TAG] Manual JSON parsing failed: ${parseError.message}")
+                        throw Exception("$errorPrefix: Failed to parse response - ${parseError.message}")
+                    }
+                }
             }
             HttpStatusCode.Unauthorized -> {
                 println("[$TAG] Unauthorized - clearing token")
@@ -283,7 +306,11 @@ class PosApiService(
         return try {
             response.body<ErrorResponse>().message
         } catch (_: Exception) {
-            "Unknown error"
+            try {
+                response.bodyAsText()
+            } catch (_: Exception) {
+                "Unknown error"
+            }
         }
     }
 }

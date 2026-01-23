@@ -136,39 +136,83 @@ class PosRepository(
     /**
      * Set order status to BILL_PRINTED
      */
-    suspend fun printBill(orderId: Long): Result<FoodOrderShortInfo> {
+    suspend fun printBill(orderId: Long): Result<FoodOrderByCustomer> {
         println("[$TAG] printBill: orderId=$orderId")
         val result = api.setPlacedOrBillPrinted(orderId, OrderStatus.BILL_PRINTED)
+        
+        // Always refresh orders list to ensure consistency
         result.onSuccess { order ->
-            updateOrderInCache(order)
+            updateOrderInCacheFromFull(order)
         }
+        
+        // Refresh even on error to get latest state from server
+        refreshOrders()
+        
         return result
     }
 
     /**
      * Mark order as PAID
      */
-    suspend fun markPaid(orderId: Long): Result<FoodOrderShortInfo> {
+    suspend fun markPaid(orderId: Long): Result<FoodOrderByCustomer> {
         println("[$TAG] markPaid: orderId=$orderId")
         val result = api.setPaidOrCancel(orderId, OrderStatus.PAID)
+        
+        // Always refresh orders list to ensure consistency
         result.onSuccess { order ->
             // Remove from active orders cache (paid orders are no longer active)
             removeOrderFromCache(orderId)
         }
+        
+        // Refresh even on error to get latest state from server
+        refreshOrders()
+        
         return result
     }
 
     /**
      * Cancel an order
      */
-    suspend fun cancelOrder(orderId: Long): Result<FoodOrderShortInfo> {
+    suspend fun cancelOrder(orderId: Long): Result<FoodOrderByCustomer> {
         println("[$TAG] cancelOrder: orderId=$orderId")
         val result = api.setPaidOrCancel(orderId, OrderStatus.CANCELED)
+        
+        // Always refresh orders list to ensure consistency
         result.onSuccess { order ->
             // Remove from active orders cache
             removeOrderFromCache(orderId)
         }
+        
+        // Refresh even on error to get latest state from server
+        refreshOrders()
+        
         return result
+    }
+
+    /**
+     * Convert FoodOrderByCustomer to FoodOrderShortInfo for cache
+     */
+    private fun toShortInfo(order: FoodOrderByCustomer): FoodOrderShortInfo {
+        return FoodOrderShortInfo(
+            id = order.id,
+            waiterName = order.waiterName,
+            waiterId = order.waiterId,
+            totalAmount = order.totalAmount,
+            orderStatus = order.orderStatus,
+            tableId = order.tableId,
+            tableNumber = order.tableNumber,
+            createdDateTime = order.createdDateTime
+        )
+    }
+
+    private suspend fun updateOrderInCacheFromFull(order: FoodOrderByCustomer) {
+        mutex.withLock {
+            val shortInfo = toShortInfo(order)
+            _ordersCache.value = _ordersCache.value + (order.id to shortInfo)
+            // Invalidate details cache
+            _orderDetailsCache.value = _orderDetailsCache.value - order.id
+            println("[$TAG] Order status updated in cache: id=${order.id}, status=${order.orderStatus}")
+        }
     }
 
     private suspend fun updateOrderInCache(order: FoodOrderShortInfo) {

@@ -3,12 +3,13 @@ package ui.screens
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -19,10 +20,14 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import data.model.BeverageResponse
 import data.model.PageBeverageResponse
@@ -354,37 +359,59 @@ private fun BeverageList(
     onEdit: (Long) -> Unit,
     onDelete: (BeverageResponse) -> Unit
 ) {
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        itemsIndexed(beverages) { index, beverage ->
-            var isVisible by remember { mutableStateOf(false) }
-            
-            LaunchedEffect(Unit) {
-                delay(index * 50L)
-                isVisible = true
-            }
-            
-            AnimatedVisibility(
-                visible = isVisible,
-                enter = fadeIn(animationSpec = tween(AppAnimations.DURATION_NORMAL)) +
-                    slideInVertically(
-                        initialOffsetY = { it / 4 },
-                        animationSpec = tween(AppAnimations.DURATION_NORMAL, easing = AppAnimations.EaseOutQuart)
-                    )
-            ) {
-                BeverageCard(
-                    beverage = beverage,
-                    onView = { onView(beverage.id) },
-                    onEdit = { onEdit(beverage.id) },
-                    onDelete = { onDelete(beverage) }
-                )
-            }
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        val columns = when {
+            maxWidth < 500.dp -> 1
+            maxWidth < 900.dp -> 2
+            maxWidth < 1300.dp -> 3
+            else -> 4
         }
         
-        item { Spacer(modifier = Modifier.height(80.dp)) }
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            beverages.chunked(columns).forEachIndexed { rowIndex, rowItems ->
+                item {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        for ((index, beverage) in rowItems.withIndex()) {
+                            var isVisible by remember { mutableStateOf(false) }
+                            
+                            LaunchedEffect(Unit) {
+                                delay((rowIndex * columns + index) * 50L)
+                                isVisible = true
+                            }
+                            
+                            AnimatedVisibility(
+                                visible = isVisible,
+                                enter = fadeIn(animationSpec = tween(AppAnimations.DURATION_NORMAL)) +
+                                    slideInVertically(
+                                        initialOffsetY = { it / 4 },
+                                        animationSpec = tween(AppAnimations.DURATION_NORMAL, easing = AppAnimations.EaseOutQuart)
+                                    ),
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                BeverageCard(
+                                    beverage = beverage,
+                                    onView = { onView(beverage.id) },
+                                    onEdit = { onEdit(beverage.id) },
+                                    onDelete = { onDelete(beverage) }
+                                )
+                            }
+                        }
+                        repeat(columns - rowItems.size) { 
+                            Spacer(Modifier.weight(1f)) 
+                        }
+                    }
+                }
+            }
+            
+            item { Spacer(modifier = Modifier.height(80.dp)) }
+        }
     }
 }
 
@@ -399,12 +426,20 @@ private fun BeverageCard(
     val isHovered by interactionSource.collectIsHoveredAsState()
     
     val elevation by animateDpAsState(
-        targetValue = if (isHovered) 12.dp else 4.dp,
+        targetValue = if (isHovered) 16.dp else 4.dp,
         animationSpec = tween(AppAnimations.DURATION_FAST)
     )
     
     val scale by animateFloatAsState(
-        targetValue = if (isHovered) 1.01f else 1f,
+        targetValue = if (isHovered) 1.02f else 1f,
+        animationSpec = tween(AppAnimations.DURATION_FAST)
+    )
+    
+    val borderColor by animateColorAsState(
+        targetValue = if (isHovered) 
+            MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
+        else 
+            Color.Transparent,
         animationSpec = tween(AppAnimations.DURATION_FAST)
     )
     
@@ -413,104 +448,329 @@ private fun BeverageCard(
     Card(
         modifier = Modifier
             .fillMaxWidth()
+            .height(280.dp)
             .hoverable(interactionSource)
-            .graphicsLayer { scaleX = scale; scaleY = scale },
+            .graphicsLayer { scaleX = scale; scaleY = scale }
+            .shadow(
+                elevation = elevation,
+                shape = RoundedCornerShape(16.dp),
+                spotColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
+                ambientColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
+            )
+            .border(
+                width = 2.dp,
+                color = borderColor,
+                shape = RoundedCornerShape(16.dp)
+            ),
         shape = RoundedCornerShape(16.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = elevation),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            // Left: Icon and Name
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(16.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.weight(1f)
+        Column(modifier = Modifier.fillMaxSize()) {
+            // Header with gradient background
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(
+                        brush = Brush.horizontalGradient(
+                            colors = listOf(
+                                MaterialTheme.colorScheme.primary,
+                                MaterialTheme.colorScheme.primary.copy(alpha = 0.8f)
+                            )
+                        )
+                    )
+                    .padding(horizontal = 16.dp, vertical = 10.dp)
             ) {
-                Surface(
-                    shape = RoundedCornerShape(12.dp),
-                    color = MaterialTheme.colorScheme.primaryContainer
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
+                    // Beverage icon
                     Icon(
                         imageVector = Icons.Outlined.LocalDrink,
                         contentDescription = null,
-                        modifier = Modifier.padding(12.dp).size(28.dp),
-                        tint = MaterialTheme.colorScheme.primary
-                    )
-                }
-                
-                Column {
-                    Text(
-                        text = beverage.name,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Text(
-                        text = "${beverage.prices.size} price option${if (beverage.prices.size != 1) "s" else ""}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        tint = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f),
+                        modifier = Modifier.size(20.dp)
                     )
                 }
             }
             
-            // Center: Price chips
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.weight(1f)
+            // Beverage name
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 12.dp)
             ) {
-                beverage.prices.take(3).forEach { price ->
-                    Surface(
-                        shape = RoundedCornerShape(8.dp),
-                        color = MaterialTheme.colorScheme.secondaryContainer
-                    ) {
-                        Text(
-                            text = "৳${df.format(price.price)}/${price.quantity}${price.unit.name.first()}",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSecondaryContainer,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                        )
-                    }
-                }
-                if (beverage.prices.size > 3) {
-                    Text(
-                        text = "+${beverage.prices.size - 3}",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
+                Text(
+                    text = beverage.name,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
             }
             
-            // Right: Action buttons
-            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                IconButton(onClick = onView) {
-                    Icon(
-                        imageVector = Icons.Default.Visibility,
-                        contentDescription = "View",
-                        tint = MaterialTheme.colorScheme.primary
+            // Divider with subtle gradient
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(1.dp)
+                    .padding(horizontal = 16.dp)
+                    .background(
+                        brush = Brush.horizontalGradient(
+                            colors = listOf(
+                                Color.Transparent,
+                                MaterialTheme.colorScheme.outlineVariant,
+                                Color.Transparent
+                            )
+                        )
                     )
-                }
-                IconButton(onClick = onEdit) {
-                    Icon(
-                        imageVector = Icons.Default.Edit,
-                        contentDescription = "Edit",
-                        tint = MaterialTheme.colorScheme.tertiary
-                    )
-                }
-                IconButton(onClick = onDelete) {
-                    Icon(
-                        imageVector = Icons.Default.Delete,
-                        contentDescription = "Delete",
-                        tint = MaterialTheme.colorScheme.error
-                    )
+            )
+
+            // Price table
+            BeveragePriceTable(
+                prices = beverage.prices,
+                df = df,
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(horizontal = 12.dp, vertical = 8.dp)
+            )
+            
+            // Action Buttons
+            HorizontalDivider(
+                modifier = Modifier.padding(horizontal = 12.dp),
+                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+            )
+            
+            BeverageActionButtonsRow(
+                onView = onView,
+                onEdit = onEdit,
+                onDelete = onDelete
+            )
+        }
+    }
+}
+
+@Composable
+private fun BeveragePriceTable(
+    prices: List<data.model.BeveragePrice>,
+    df: DecimalFormat,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+            .padding(12.dp)
+    ) {
+        // Header
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 8.dp)
+        ) {
+            Text(
+                text = "SIZE",
+                modifier = Modifier.weight(1f),
+                style = ExtendedTypography.overline,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+            )
+            Text(
+                text = "PRICE",
+                modifier = Modifier.weight(1f),
+                style = ExtendedTypography.overline,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                textAlign = TextAlign.End
+            )
+        }
+
+        // Divider line
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(1.dp)
+                .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+        )
+        
+        Spacer(modifier = Modifier.height(6.dp))
+
+        // Body
+        if (prices.isEmpty()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "No prices available",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                )
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                items(prices) { price ->
+                    BeveragePriceRow(price = price, df = df)
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun BeveragePriceRow(
+    price: data.model.BeveragePrice,
+    df: DecimalFormat
+) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val isHovered by interactionSource.collectIsHoveredAsState()
+    
+    val backgroundColor by animateColorAsState(
+        targetValue = if (isHovered) 
+            MaterialTheme.colorScheme.primary.copy(alpha = 0.08f) 
+        else 
+            Color.Transparent,
+        animationSpec = tween(AppAnimations.DURATION_FAST)
+    )
+    
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .hoverable(interactionSource)
+            .clip(RoundedCornerShape(6.dp))
+            .background(backgroundColor)
+            .padding(horizontal = 8.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // Size with badge styling - aligned to left with weight
+        Box(
+            modifier = Modifier.weight(1f),
+            contentAlignment = Alignment.CenterStart
+        ) {
+            Surface(
+                shape = RoundedCornerShape(4.dp),
+                color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.6f)
+            ) {
+                Text(
+                    text = "${price.quantity}${price.unit.name.first()}",
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer,
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                )
+            }
+        }
+        
+        // Price with emphasis - aligned to right with weight
+        Box(
+            modifier = Modifier.weight(1f),
+            contentAlignment = Alignment.CenterEnd
+        ) {
+            Text(
+                text = "৳${df.format(price.price)}",
+                style = ExtendedTypography.priceTag,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary,
+                textAlign = TextAlign.End
+            )
+        }
+    }
+}
+
+@Composable
+private fun BeverageActionButtonsRow(
+    onView: () -> Unit,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        // View Button
+        BeverageActionButton(
+            onClick = onView,
+            icon = Icons.Default.Visibility,
+            label = "View",
+            containerColor = MaterialTheme.colorScheme.secondaryContainer,
+            contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+            modifier = Modifier.weight(1f)
+        )
+        
+        // Edit Button
+        BeverageActionButton(
+            onClick = onEdit,
+            icon = Icons.Default.Edit,
+            label = "Edit",
+            containerColor = MaterialTheme.colorScheme.primaryContainer,
+            contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+            modifier = Modifier.weight(1f)
+        )
+        
+        // Delete Button
+        BeverageActionButton(
+            onClick = onDelete,
+            icon = Icons.Default.Delete,
+            label = "Delete",
+            containerColor = MaterialTheme.colorScheme.errorContainer,
+            contentColor = MaterialTheme.colorScheme.error,
+            modifier = Modifier.weight(1f)
+        )
+    }
+}
+
+@Composable
+private fun BeverageActionButton(
+    onClick: () -> Unit,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    containerColor: Color,
+    contentColor: Color,
+    modifier: Modifier = Modifier
+) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val isHovered by interactionSource.collectIsHoveredAsState()
+    
+    val scale by animateFloatAsState(
+        targetValue = if (isHovered) 1.05f else 1f,
+        animationSpec = tween(AppAnimations.DURATION_FAST)
+    )
+    
+    FilledTonalButton(
+        onClick = onClick,
+        modifier = modifier
+            .height(36.dp)
+            .hoverable(interactionSource)
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+            },
+        shape = RoundedCornerShape(8.dp),
+        colors = ButtonDefaults.filledTonalButtonColors(
+            containerColor = containerColor,
+            contentColor = contentColor
+        ),
+        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            modifier = Modifier.size(16.dp)
+        )
+        Spacer(modifier = Modifier.width(4.dp))
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.Medium
+        )
     }
 }
 

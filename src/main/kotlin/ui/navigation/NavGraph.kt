@@ -46,6 +46,12 @@ sealed class MenuDestination(val menuCode: String) {
     object FoodItem : MenuDestination("FOOD_ITEM")
     object Beverage : MenuDestination("BEVERAGE")
     object Pos : MenuDestination("POS")
+    object SetupMenu : MenuDestination("SETUP_MENU")
+    object MenuAssign : MenuDestination("MENU_ASSIGN")
+    object PermissionSetup : MenuDestination("PERMISSION_SETUP")
+    object PermissionAssign : MenuDestination("PERMISSION_ASSIGN")
+    object Report : MenuDestination("REPORT")
+    object CompleteFoodOrder : MenuDestination("COMPLETE_FOOD_ORDER")
     
     companion object {
         // POS menu code variants that should all route to POS
@@ -74,6 +80,24 @@ fun NavigationHost(
         }
         MenuDestination.isPosMenu(currentMenuCode) -> {
             PosNavigationHost()
+        }
+        currentMenuCode == MenuDestination.SetupMenu.menuCode -> {
+            ui.screens.menu.MenuSetupScreen()
+        }
+        currentMenuCode == MenuDestination.MenuAssign.menuCode -> {
+            ui.screens.menu.MenuAssignScreen()
+        }
+        currentMenuCode == MenuDestination.PermissionSetup.menuCode -> {
+            ui.screens.menu.MenuPermissionTypesScreen()
+        }
+        currentMenuCode == MenuDestination.PermissionAssign.menuCode -> {
+            ui.screens.menu.MenuPermissionsScreen()
+        }
+        currentMenuCode == MenuDestination.Report.menuCode -> {
+            ReportNavigationHost()
+        }
+        currentMenuCode == MenuDestination.CompleteFoodOrder.menuCode -> {
+            ReportNavigationHost()
         }
         else -> {
             PlaceholderScreen(menuItem = currentMenuItem)
@@ -413,6 +437,43 @@ fun PosNavigationHost() {
                     }
                 )
             }
+        }
+    }
+}
+
+/**
+ * Report navigation destinations
+ */
+sealed class ReportDestination {
+    object List : ReportDestination()
+    data class Detail(val orderId: String) : ReportDestination()
+}
+
+/**
+ * Report navigation host - handles internal navigation between report screens
+ */
+@Composable
+fun ReportNavigationHost() {
+    var currentDestination by remember { mutableStateOf<ReportDestination>(ReportDestination.List) }
+    
+    when (val destination = currentDestination) {
+        is ReportDestination.List -> {
+            ui.screens.report.PosReportScreen(
+                onNavigateToDetail = { orderId ->
+                    println("[NavGraph] Report: Navigate from List to Detail: orderId=$orderId")
+                    currentDestination = ReportDestination.Detail(orderId)
+                }
+            )
+        }
+        
+        is ReportDestination.Detail -> {
+            ui.screens.report.PosOrderDetailScreen(
+                orderId = destination.orderId,
+                onNavigateBack = {
+                    println("[NavGraph] Report: Navigate back from Detail to List")
+                    currentDestination = ReportDestination.List
+                }
+            )
         }
     }
 }

@@ -47,15 +47,23 @@ sealed class MenuDestination(val menuCode: String) {
     object Beverage : MenuDestination("BEVERAGE")
     object Pos : MenuDestination("POS")
     object SetupMenu : MenuDestination("SETUP_MENU")
+    // Menu-role assignment — exposed under two different menu codes in the DB
     object MenuAssign : MenuDestination("MENU_ASSIGN")
+    object MenuRole : MenuDestination("MENU_ROLE")
+    // Permission management — both "granular" screens and unified entry
     object PermissionSetup : MenuDestination("PERMISSION_SETUP")
     object PermissionAssign : MenuDestination("PERMISSION_ASSIGN")
+    object Permission : MenuDestination("PERMISSION")
+    // Role CRUD — DB menuCode is "ROLE"
+    object RoleSetup : MenuDestination("ROLE")
+    // Reports
     object Report : MenuDestination("REPORT")
+    object ReportPos : MenuDestination("REPORT_POS")
     object CompleteFoodOrder : MenuDestination("COMPLETE_FOOD_ORDER")
     
     companion object {
-        // POS menu code variants that should all route to POS
-        val POS_VARIANTS = setOf("POS", "POS_ORDER", "POS_ORDERS")
+        // POS menu code variants that should all route to the POS screen
+        val POS_VARIANTS = setOf("POS", "POS_ORDER", "POS_ORDERS", "POS_MANAGEMENT")
         
         fun isPosMenu(menuCode: String): Boolean = menuCode.uppercase() in POS_VARIANTS
     }
@@ -72,33 +80,55 @@ fun NavigationHost(
     println("[NavGraph] NavigationHost: menuCode=$currentMenuCode")
     
     when {
+        // ── Food & Beverage ─────────────────────────────────────────────────
         currentMenuCode == MenuDestination.FoodItem.menuCode -> {
             FoodItemNavigationHost()
         }
         currentMenuCode == MenuDestination.Beverage.menuCode -> {
             BeverageNavigationHost()
         }
+
+        // ── POS (covers POS / POS_ORDER / POS_ORDERS / POS_MANAGEMENT) ─────
         MenuDestination.isPosMenu(currentMenuCode) -> {
             PosNavigationHost()
         }
+
+        // ── Menu Setup & Assignment ─────────────────────────────────────────
         currentMenuCode == MenuDestination.SetupMenu.menuCode -> {
             ui.screens.menu.MenuSetupScreen()
         }
-        currentMenuCode == MenuDestination.MenuAssign.menuCode -> {
+        // MENU_ASSIGN and MENU_ROLE both drive the Menu ↔ Role assignment screen
+        currentMenuCode == MenuDestination.MenuAssign.menuCode ||
+        currentMenuCode == MenuDestination.MenuRole.menuCode -> {
             ui.screens.menu.MenuAssignScreen()
         }
-        currentMenuCode == MenuDestination.PermissionSetup.menuCode -> {
+
+        // ── Permission Management ────────────────────────────────────────────
+        // PERMISSION_SETUP / PERMISSION  → permission type definitions
+        currentMenuCode == MenuDestination.PermissionSetup.menuCode ||
+        currentMenuCode == MenuDestination.Permission.menuCode -> {
             ui.screens.menu.MenuPermissionTypesScreen()
         }
+        // PERMISSION_ASSIGN → assign permissions to roles
         currentMenuCode == MenuDestination.PermissionAssign.menuCode -> {
             ui.screens.menu.MenuPermissionsScreen()
         }
-        currentMenuCode == MenuDestination.Report.menuCode -> {
+
+        // ── Role Management ──────────────────────────────────────────────────
+        currentMenuCode == MenuDestination.RoleSetup.menuCode -> {
+            ui.screens.menu.RoleSetupScreen()
+        }
+
+        // ── Reports ──────────────────────────────────────────────────────────
+        currentMenuCode == MenuDestination.Report.menuCode ||
+        currentMenuCode == MenuDestination.ReportPos.menuCode -> {
             ReportNavigationHost()
         }
         currentMenuCode == MenuDestination.CompleteFoodOrder.menuCode -> {
             ReportNavigationHost()
         }
+
+        // ── Fallback (Placeholder) ────────────────────────────────────────────
         else -> {
             PlaceholderScreen(menuItem = currentMenuItem)
         }

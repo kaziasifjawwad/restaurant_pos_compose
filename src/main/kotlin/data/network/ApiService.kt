@@ -88,7 +88,7 @@ class ApiService : AutoCloseable {
         return try {
             val token = AuthManager.getToken() ?: return Result.failure(Exception("Not authenticated"))
             
-            val response: HttpResponse = client.get("$BASE_URL/menu") {
+            val response: HttpResponse = client.get("$BASE_URL/menu/user") {
                 header(HttpHeaders.Authorization, "Bearer $token")
             }
 

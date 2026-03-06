@@ -87,41 +87,25 @@ fun MenuAssignScreen() {
 
     fun handleSave() {
         if (selectedRole == null) return
-        
+
         scope.launch {
             isLoading = true
             errorMessage = null
             successMessage = null
             try {
-                // Prepare request list
-                // We need to send ALL assigned menu IDs for this role
-                // The API expects a list of MenuRoleRequest objects
-                // Based on previous code: updateMenuRoles(List<MenuRoleRequest>)
-                
-                val requestList = assignedMenuIds.map { menuId ->
+                // Collect all menu IDs from the full tree (parents + children)
+                val allMenuIds = collectAllMenuIds(allMenus)
+
+                // Build a full-diff request: active=true for checked, active=false for unchecked.
+                // The backend does an upsert and also syncs the _VIEW permission flag for each menu.
+                val requestList = allMenuIds.map { menuId ->
                     MenuRoleRequest(
                         menuId = menuId,
                         roleId = selectedRole!!.id,
-                        active = true 
+                        active = assignedMenuIds.contains(menuId)
                     )
                 }
-                
-                // Note: The API might expect a diff or a full replace. 
-                // Usually "update" implies replacing the set or updating statuses.
-                // If the backend wipes existing and adds new, this is fine.
-                // If it updates existing, we might need to handle unticked ones too if we want to remove them.
-                // Assuming typical "save assignments" behavior where we send what's active.
-                
-                // However, check api.updateMenuRoles signature.
-                // It takes List<MenuRoleRequest>.
-                // If the backend expects only the changes, or the full state, depends on implementation.
-                // Given "updateMenuRoles" name, let's assume it updates the passed records.
-                // If we want to REMOVE a role, we might need to send status=false or the backend might handle "missing = deleted".
-                // Let's assume for now we send all 'checked' items. 
-                
-                // Let's check MenuManagementApiService again mentally...
-                // It just calls PUT /menu-role.
-                
+
                 api.updateMenuRoles(requestList)
                 successMessage = "Menu assignments saved successfully"
             } catch (e: Exception) {
@@ -261,7 +245,7 @@ fun MenuAssignScreen() {
     }
 }
 
-// Helper to loading assigments
+// Helper to load assignments for a role
 suspend fun loadRoleAssignments(api: MenuApiService, roleId: Long, onResult: (Set<Long>) -> Unit) {
     val assignments = api.getMenuRolesByRoleId(roleId)
     val ids = assignments.filter { it.active }.map { it.menuId }.toSet()
@@ -279,6 +263,16 @@ fun mapToTreeNodes(menus: List<MenuResponse>): List<MenuTreeNode> {
             restrictedToRoles = menu.restrictedToRoles.map { it.id }
         )
     }
+}
+
+// Helper to recursively collect all menu IDs from the tree (parents + children)
+fun collectAllMenuIds(nodes: List<MenuTreeNode>): Set<Long> {
+    val ids = mutableSetOf<Long>()
+    for (node in nodes) {
+        ids.add(node.origin.id)
+        ids.addAll(collectAllMenuIds(node.children))
+    }
+    return ids
 }
 
 

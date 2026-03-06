@@ -79,20 +79,25 @@ fun MenuPermissionsScreen() {
 
     fun handleSave() {
         if (selectedRole == null) return
-        
+
         scope.launch {
             isLoading = true
             errorMessage = null
             successMessage = null
             try {
-                val requestList = assignedPermissionIds.map { permId ->
+                // Collect ALL permission IDs across all groups for a full-diff update.
+                // The backend does an upsert per record, so we must send active=false
+                // for permissions the role should NOT have (otherwise they stay active).
+                val allPermissionIds = allPermissionsMap.values.flatten().map { it.id }.toSet()
+
+                val requestList = allPermissionIds.map { permId ->
                     PermissionRoleRequest(
                         permissionId = permId,
                         roleId = selectedRole!!.id,
-                        active = true 
+                        active = assignedPermissionIds.contains(permId)
                     )
                 }
-                
+
                 api.updatePermissionRoles(requestList)
                 successMessage = "Permissions saved successfully"
             } catch (e: Exception) {
@@ -199,23 +204,51 @@ fun MenuPermissionsScreen() {
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
-                         Text(
+                        Text(
                             "Permissions Access",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold
                         )
                         Spacer(modifier = Modifier.height(8.dp))
-                        
+
                         LazyColumn(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                             allPermissionsMap.forEach { (groupName, permissions) ->
                                 item {
                                     Column {
-                                        Text(
-                                            groupName, 
-                                            style = MaterialTheme.typography.titleSmall,
-                                            color = MaterialTheme.colorScheme.primary,
-                                            fontWeight = FontWeight.SemiBold
-                                        )
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            // Humanize UPPER_SNAKE_CASE → "Title Case"
+                                            Text(
+                                                groupName.replace('_', ' ').lowercase()
+                                                    .split(' ').joinToString(" ") { word ->
+                                                        word.replaceFirstChar { it.uppercase() }
+                                                    },
+                                                style = MaterialTheme.typography.titleSmall,
+                                                color = MaterialTheme.colorScheme.primary,
+                                                fontWeight = FontWeight.SemiBold
+                                            )
+                                            // Select All / Deselect All for this group
+                                            val groupIds = permissions.map { it.id }.toSet()
+                                            val allSelected = groupIds.all { assignedPermissionIds.contains(it) }
+                                            TextButton(
+                                                onClick = {
+                                                    assignedPermissionIds = if (allSelected) {
+                                                        assignedPermissionIds - groupIds
+                                                    } else {
+                                                        assignedPermissionIds + groupIds
+                                                    }
+                                                },
+                                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+                                            ) {
+                                                Text(
+                                                    if (allSelected) "Deselect All" else "Select All",
+                                                    style = MaterialTheme.typography.labelSmall
+                                                )
+                                            }
+                                        }
                                         Divider(modifier = Modifier.padding(vertical = 4.dp))
                                         permissions.forEach { perm ->
                                             Row(

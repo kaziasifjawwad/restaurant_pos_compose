@@ -105,10 +105,12 @@ fun MenuPermissionTypesScreen() {
             onDismiss = { showAddDialog = false },
             onConfirm = { group, name, code ->
                 scope.launch {
+                    // Normalize group name to UPPER_SNAKE_CASE to match backend normalization
+                    val normalizedGroup = group.trim().uppercase().replace(" ", "_")
                     val req = PermissionRequest(
-                        groupName = group,
+                        groupName = normalizedGroup,
                         name = name,
-                        localizationCode = code
+                        localizationCode = code.takeIf { it.isNotBlank() }
                     )
                     try {
                         api.createPermission(req)
@@ -168,6 +170,10 @@ fun PermissionTypesTopBar() {
 
 @Composable
 fun PermissionGroupCard(groupName: String, permissions: List<PermissionResponse>) {
+    // Humanize UPPER_SNAKE_CASE → "Title Case" for display
+    val displayName = groupName.replace('_', ' ').lowercase()
+        .split(' ').joinToString(" ") { it.replaceFirstChar { c -> c.uppercase() } }
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
@@ -175,13 +181,13 @@ fun PermissionGroupCard(groupName: String, permissions: List<PermissionResponse>
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(
-                text = groupName,
+                text = displayName,
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.primary
             )
             Divider(modifier = Modifier.padding(vertical = 8.dp))
-            
+
             permissions.forEach { perm ->
                 Row(
                    modifier = Modifier
@@ -191,7 +197,7 @@ fun PermissionGroupCard(groupName: String, permissions: List<PermissionResponse>
                 ) {
                     Text(perm.name, style = MaterialTheme.typography.bodyMedium)
                     Text(
-                        perm.localizationCode ?: "", 
+                        perm.localizationCode ?: "",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )

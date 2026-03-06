@@ -56,6 +56,8 @@ sealed class MenuDestination(val menuCode: String) {
     object Permission : MenuDestination("PERMISSION")
     // Role CRUD — DB menuCode is "ROLE"
     object RoleSetup : MenuDestination("ROLE")
+    // User CRUD
+    object UserRegistration : MenuDestination("USER_INFO")
     // Reports
     object Report : MenuDestination("REPORT")
     object ReportPos : MenuDestination("REPORT_POS")
@@ -117,6 +119,11 @@ fun NavigationHost(
         // ── Role Management ──────────────────────────────────────────────────
         currentMenuCode == MenuDestination.RoleSetup.menuCode -> {
             ui.screens.menu.RoleSetupScreen()
+        }
+
+        // ── User Management ──────────────────────────────────────────────────
+        currentMenuCode == MenuDestination.UserRegistration.menuCode -> {
+            ui.screens.user.UserRegistrationScreen()
         }
 
         // ── Reports ──────────────────────────────────────────────────────────

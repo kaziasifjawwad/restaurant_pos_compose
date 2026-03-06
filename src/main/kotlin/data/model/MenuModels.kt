@@ -2,6 +2,18 @@ package data.model
 
 import kotlinx.serialization.Serializable
 
+// ==================== Generic API Responses ====================
+
+/**
+ * Generic success wrapper returned by PUT/POST endpoints that respond with {"success": true}.
+ *
+ * kotlinx.serialization cannot deserialize Map<String, Any> because `Any` is polymorphic
+ * and requires a type discriminator that our backend never sends. Use this instead everywhere
+ * the server returns a simple {"success": …} body.
+ */
+@Serializable
+data class SuccessResponse(val success: Boolean = false)
+
 // ==================== Menu Models ====================
 
 @Serializable

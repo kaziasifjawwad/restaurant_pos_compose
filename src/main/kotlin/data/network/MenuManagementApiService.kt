@@ -191,8 +191,9 @@ class MenuApiService {
     
     /**
      * Update menu-role assignments
+     * Returns: {"success": true/false}
      */
-    suspend fun updateMenuRoles(menuRoles: List<MenuRoleRequest>): Map<String, Any> {
+    suspend fun updateMenuRoles(menuRoles: List<MenuRoleRequest>): SuccessResponse {
         println("[$TAG] Updating menu-roles: ${menuRoles.size} items")
         return try {
             client.put("$baseUrl/menu-role") {
@@ -235,9 +236,11 @@ class MenuApiService {
     }
     
     /**
-     * Create permission type
+     * Create permission type.
+     * The backend auto-creates 3 sub-permissions (_VIEW, _CREATE_UPDATE, _DELETE)
+     * and returns {"success": true}.
      */
-    suspend fun createPermission(permission: PermissionRequest): Map<String, Any> {
+    suspend fun createPermission(permission: PermissionRequest): SuccessResponse {
         println("[$TAG] Creating permission: ${permission.groupName}")
         return try {
             client.post("$baseUrl/permission") {
@@ -279,8 +282,9 @@ class MenuApiService {
     
     /**
      * Update permission-role assignments
+     * Returns: {"success": true/false}
      */
-    suspend fun updatePermissionRoles(permissionRoles: List<PermissionRoleRequest>): Map<String, Any> {
+    suspend fun updatePermissionRoles(permissionRoles: List<PermissionRoleRequest>): SuccessResponse {
         println("[$TAG] Updating permission-roles: ${permissionRoles.size} items")
         return try {
             client.put("$baseUrl/permission/role") {

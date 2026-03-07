@@ -145,6 +145,152 @@ class FoodItemApiService(
         return pageResponse.content
     }
 
+    // ==================== Ingredient CRUD ====================
+
+    /**
+     * GET /food/ingredient (paginated)
+     */
+    suspend fun getIngredientsPaged(page: Int = 0, size: Int = 20): PageIngredientResponse {
+        val token = AuthManager.getToken() ?: throw Exception("Not authenticated")
+        val response: HttpResponse = client.get("$baseUrl/food/ingredient") {
+            header(HttpHeaders.Authorization, "Bearer $token")
+            accept(ContentType.Application.Json)
+            url {
+                parameters.append("page", page.toString())
+                parameters.append("size", size.toString())
+                parameters.append("sort", "id")
+            }
+        }
+        return handleResponse(response, "Failed to load ingredients")
+    }
+
+    /**
+     * GET /food/ingredient/{id}
+     */
+    suspend fun getIngredientById(id: Long): Ingredient {
+        val token = AuthManager.getToken() ?: throw Exception("Not authenticated")
+        val response: HttpResponse = client.get("$baseUrl/food/ingredient/$id") {
+            header(HttpHeaders.Authorization, "Bearer $token")
+            accept(ContentType.Application.Json)
+        }
+        return handleResponse(response, "Failed to load ingredient")
+    }
+
+    /**
+     * POST /food/ingredient
+     */
+    suspend fun createIngredient(name: String, description: String): Ingredient {
+        val token = AuthManager.getToken() ?: throw Exception("Not authenticated")
+        val response: HttpResponse = client.post("$baseUrl/food/ingredient") {
+            header(HttpHeaders.Authorization, "Bearer $token")
+            contentType(ContentType.Application.Json)
+            accept(ContentType.Application.Json)
+            setBody(IngredientRequest(name, description))
+        }
+        return handleResponse(response, "Failed to create ingredient")
+    }
+
+    /**
+     * PUT /food/ingredient/{id}
+     */
+    suspend fun updateIngredient(id: Long, name: String, description: String): Ingredient {
+        val token = AuthManager.getToken() ?: throw Exception("Not authenticated")
+        val response: HttpResponse = client.put("$baseUrl/food/ingredient/$id") {
+            header(HttpHeaders.Authorization, "Bearer $token")
+            contentType(ContentType.Application.Json)
+            accept(ContentType.Application.Json)
+            setBody(IngredientRequest(name, description))
+        }
+        return handleResponse(response, "Failed to update ingredient")
+    }
+
+    /**
+     * DELETE /food/ingredient/{id}
+     */
+    suspend fun deleteIngredient(id: Long) {
+        val token = AuthManager.getToken() ?: throw Exception("Not authenticated")
+        val response: HttpResponse = client.delete("$baseUrl/food/ingredient/$id") {
+            header(HttpHeaders.Authorization, "Bearer $token")
+        }
+        if (!response.status.isSuccess()) {
+            val error = tryParseError(response)
+            throw Exception("Failed to delete ingredient: $error")
+        }
+    }
+
+    // ==================== Food Category CRUD ====================
+
+    /**
+     * GET /food/category (paginated)
+     */
+    suspend fun getCategoriesPaged(page: Int = 0, size: Int = 20): PageCategoryResponse {
+        val token = AuthManager.getToken() ?: throw Exception("Not authenticated")
+        val response: HttpResponse = client.get("$baseUrl/food/category") {
+            header(HttpHeaders.Authorization, "Bearer $token")
+            accept(ContentType.Application.Json)
+            url {
+                parameters.append("page", page.toString())
+                parameters.append("size", size.toString())
+                parameters.append("sort", "id")
+            }
+        }
+        return handleResponse(response, "Failed to load categories")
+    }
+
+    /**
+     * GET /food/category/{id}
+     */
+    suspend fun getCategoryById(id: Long): FoodCategory {
+        val token = AuthManager.getToken() ?: throw Exception("Not authenticated")
+        val response: HttpResponse = client.get("$baseUrl/food/category/$id") {
+            header(HttpHeaders.Authorization, "Bearer $token")
+            accept(ContentType.Application.Json)
+        }
+        return handleResponse(response, "Failed to load category")
+    }
+
+    /**
+     * POST /food/category
+     */
+    suspend fun createCategory(name: String, description: String): FoodCategory {
+        val token = AuthManager.getToken() ?: throw Exception("Not authenticated")
+        val response: HttpResponse = client.post("$baseUrl/food/category") {
+            header(HttpHeaders.Authorization, "Bearer $token")
+            contentType(ContentType.Application.Json)
+            accept(ContentType.Application.Json)
+            setBody(CategoryRequest(name, description))
+        }
+        return handleResponse(response, "Failed to create category")
+    }
+
+    /**
+     * PUT /food/category/{id}
+     */
+    suspend fun updateCategory(id: Long, name: String, description: String): FoodCategory {
+        val token = AuthManager.getToken() ?: throw Exception("Not authenticated")
+        val response: HttpResponse = client.put("$baseUrl/food/category/$id") {
+            header(HttpHeaders.Authorization, "Bearer $token")
+            contentType(ContentType.Application.Json)
+            accept(ContentType.Application.Json)
+            setBody(CategoryRequest(name, description))
+        }
+        return handleResponse(response, "Failed to update category")
+    }
+
+    /**
+     * DELETE /food/category/{id}
+     */
+    suspend fun deleteCategory(id: Long) {
+        val token = AuthManager.getToken() ?: throw Exception("Not authenticated")
+        val response: HttpResponse = client.delete("$baseUrl/food/category/$id") {
+            header(HttpHeaders.Authorization, "Bearer $token")
+        }
+        if (!response.status.isSuccess()) {
+            val error = tryParseError(response)
+            throw Exception("Failed to delete category: $error")
+        }
+    }
+
     // ==================== Helper Methods ====================
 
     /**

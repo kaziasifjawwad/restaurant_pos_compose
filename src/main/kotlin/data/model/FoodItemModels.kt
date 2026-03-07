@@ -90,6 +90,18 @@ data class Ingredient(
 )
 
 @Serializable
+data class IngredientRequest(
+    val name: String,
+    val description: String
+)
+
+@Serializable
+data class CategoryRequest(
+    val name: String,
+    val description: String
+)
+
+@Serializable
 data class PageIngredientResponse(
     val totalPages: Int,
     val totalElements: Long,

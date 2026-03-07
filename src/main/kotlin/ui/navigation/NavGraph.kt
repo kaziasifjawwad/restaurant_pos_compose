@@ -46,6 +46,10 @@ sealed class MenuDestination(val menuCode: String) {
     object FoodItem : MenuDestination("FOOD_ITEM")
     object Beverage : MenuDestination("BEVERAGE")
     object Pos : MenuDestination("POS")
+    // Inventory
+    object Ingredients : MenuDestination("INGREDIENTS")
+    object FoodCategory : MenuDestination("FOOD_CATEGORY")
+    // Menu Setup
     object SetupMenu : MenuDestination("SETUP_MENU")
     // Menu-role assignment — exposed under two different menu codes in the DB
     object MenuAssign : MenuDestination("MENU_ASSIGN")
@@ -57,7 +61,7 @@ sealed class MenuDestination(val menuCode: String) {
     // Role CRUD — DB menuCode is "ROLE"
     object RoleSetup : MenuDestination("ROLE")
     // User CRUD
-    object UserRegistration : MenuDestination("USER_INFO")
+    object UserRegistration : MenuDestination("USER_REGISTRATION")
     // Reports
     object Report : MenuDestination("REPORT")
     object ReportPos : MenuDestination("REPORT_POS")
@@ -93,6 +97,14 @@ fun NavigationHost(
         // ── POS (covers POS / POS_ORDER / POS_ORDERS / POS_MANAGEMENT) ─────
         MenuDestination.isPosMenu(currentMenuCode) -> {
             PosNavigationHost()
+        }
+
+        // ── Inventory ──────────────────────────────────────────────────────────
+        currentMenuCode == MenuDestination.Ingredients.menuCode -> {
+            ui.screens.inventory.IngredientsScreen()
+        }
+        currentMenuCode == MenuDestination.FoodCategory.menuCode -> {
+            ui.screens.inventory.FoodCategoryScreen()
         }
 
         // ── Menu Setup & Assignment ─────────────────────────────────────────

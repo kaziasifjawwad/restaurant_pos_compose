@@ -16,7 +16,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -50,9 +49,9 @@ fun PosOrderEditorScreen(
     var foodOrders by remember { mutableStateOf<List<FoodOrderEntry>>(emptyList()) }
     var beverageOrders by remember { mutableStateOf<List<BeverageOrderEntry>>(emptyList()) }
 
-    // Food input state
+    // Food input state. Null means: use backend default package for that food item.
     var foodSerialInput by remember { mutableStateOf("") }
-    var selectedFoodSize by remember { mutableStateOf(FoodSize.REGULAR) }
+    var selectedFoodSize by remember { mutableStateOf<FoodSize?>(null) }
 
     // Beverage input state
     var selectedBeverage by remember { mutableStateOf<BeverageResponse?>(null) }
@@ -73,23 +72,20 @@ fun PosOrderEditorScreen(
     LaunchedEffect(uiState.selectedOrder) {
         uiState.selectedOrder?.let { order ->
             if (isEditMode) {
-                // Find matching waiter
                 selectedWaiter = uiState.waiters.find { it.id == order.waiterId }
-                // Find matching table
                 selectedTable = uiState.tables.find { it.id == order.tableId }
-                // Convert food orders
                 foodOrders = order.foodOrders.map { fo ->
                     FoodOrderEntry(
                         itemNumber = fo.itemNumber,
                         foodName = fo.foodName ?: "Food #${fo.itemNumber}",
-                        foodSize = fo.foodSize,
+                        actualFoodSize = fo.foodSize,
+                        requestedFoodSize = fo.foodSize,
                         quantity = fo.foodQuantity,
                         price = fo.foodPrice,
                         discount = fo.discount,
                         discountType = fo.discountType ?: DiscountType.PERCENTAGE
                     )
                 }
-                // Convert beverage orders
                 beverageOrders = order.beverageOrders.map { bo ->
                     BeverageOrderEntry(
                         beverageId = bo.beverageId ?: 0L,
@@ -106,7 +102,6 @@ fun PosOrderEditorScreen(
         }
     }
 
-    // Handle success
     LaunchedEffect(uiState.successMessage) {
         if (uiState.successMessage != null && uiState.editorMode == PosUiState.EditorMode.Closed) {
             delay(500)
@@ -115,7 +110,6 @@ fun PosOrderEditorScreen(
         }
     }
 
-    // Auto-dismiss error messages after 3 seconds
     LaunchedEffect(uiState.errorMessage) {
         if (uiState.errorMessage != null) {
             delay(3000)
@@ -129,21 +123,19 @@ fun PosOrderEditorScreen(
             viewModel.onEvent(PosUiEvent.ShowError("Please enter item number"))
             return
         }
-        
-        // Pattern: supports "1", "1*3", "1 2*3" (multiple items separated by space)
+
         val regexPattern = "^(?:\\d+|(?:\\d+\\s*\\*\\s*\\d+))(?:\\s+(?:\\d+|(?:\\d+\\s*\\*\\s*\\d+)))*$"
         if (!textRepresentation.matches(Regex(regexPattern))) {
             viewModel.onEvent(PosUiEvent.ShowError("Invalid pattern. Use: 1 or 1*3 or 1 2*3"))
             return
         }
-        
-        // Parse input: split by space, then by *
+
         val orderItems = textRepresentation.split(" ").map { it.split("*") }
-        
+
         orderItems.forEach { order ->
             val itemNumber: Short
             val quantity: Int
-            
+
             try {
                 if (order.size == 1) {
                     itemNumber = order[0].toShort()
@@ -156,36 +148,39 @@ fun PosOrderEditorScreen(
                 viewModel.onEvent(PosUiEvent.ShowError("Invalid number format"))
                 return@forEach
             }
-            
+
             val foodItem = viewModel.getFoodItemByNumber(itemNumber)
             if (foodItem == null) {
                 viewModel.onEvent(PosUiEvent.ShowError("Item #$itemNumber not found"))
                 return@forEach
             }
-            
-            val priceInfo = foodItem.foodPrices.find { it.foodSize == selectedFoodSize }
+
+            val priceInfo = selectedFoodSize?.let { selectedSize ->
+                foodItem.foodPrices.find { it.foodSize == selectedSize }
+            } ?: foodItem.defaultPrice ?: foodItem.foodPrices.firstOrNull { it.isDefault }
+
             if (priceInfo == null) {
-                viewModel.onEvent(PosUiEvent.ShowError("${foodItem.name} is not available in ${selectedFoodSize.name} size"))
+                val sizeLabel = selectedFoodSize?.name ?: "default package"
+                viewModel.onEvent(PosUiEvent.ShowError("${foodItem.name} has no $sizeLabel price configured"))
                 return@forEach
             }
-            
-            // Remove existing if same item and size (like JavaFX validateExistingFoodItem)
-            foodOrders = foodOrders.filter { 
-                !(it.itemNumber == itemNumber && it.foodSize == selectedFoodSize) 
+
+            foodOrders = foodOrders.filter {
+                !(it.itemNumber == itemNumber && it.requestedFoodSize == selectedFoodSize)
             }
-            
-            val totalPriceForItem = priceInfo.foodPrice * quantity
+
             foodOrders = foodOrders + FoodOrderEntry(
                 itemNumber = itemNumber,
                 foodName = foodItem.name,
-                foodSize = selectedFoodSize,
+                actualFoodSize = priceInfo.foodSize,
+                requestedFoodSize = selectedFoodSize,
                 quantity = quantity,
                 price = priceInfo.foodPrice,
                 discount = 0.0,
                 discountType = DiscountType.PERCENTAGE
             )
         }
-        
+
         foodSerialInput = ""
     }
 
@@ -194,7 +189,6 @@ fun PosOrderEditorScreen(
         val price = selectedBeveragePrice ?: return
         val amount = beverageAmountInput.toIntOrNull() ?: 1
 
-        // Remove existing if same beverage and price
         beverageOrders = beverageOrders.filter {
             !(it.beverageId == bev.id && it.quantity == price.quantity && it.unit == price.unit)
         }
@@ -228,7 +222,7 @@ fun PosOrderEditorScreen(
             foodOrders = foodOrders.map { fo ->
                 FoodOrderRequest(
                     itemNumber = fo.itemNumber,
-                    foodSize = fo.foodSize,
+                    foodSize = fo.requestedFoodSize,
                     foodQuantity = fo.quantity,
                     discount = fo.discount,
                     discountType = fo.discountType
@@ -252,9 +246,6 @@ fun PosOrderEditorScreen(
         }
 
         println(json.encodeToString(request))
-
-
-
         viewModel.onEvent(PosUiEvent.SaveOrder(request))
     }
 
@@ -279,7 +270,6 @@ fun PosOrderEditorScreen(
             )
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
-            // Header
             PosEditorHeader(
                 isEditMode = isEditMode,
                 onBack = {
@@ -296,7 +286,6 @@ fun PosOrderEditorScreen(
                     enter = fadeIn(animationSpec = tween(AppAnimations.DURATION_ENTRANCE))
                 ) {
                     Row(modifier = Modifier.fillMaxSize()) {
-                        // Left: Order items table
                         LazyColumn(
                             modifier = Modifier
                                 .weight(0.65f)
@@ -339,18 +328,16 @@ fun PosOrderEditorScreen(
                                 }
                             }
 
-                            // Food items
                             itemsIndexed(foodOrders) { index, entry ->
                                 PosEditorItemCard(
                                     name = entry.foodName,
-                                    subtitle = "${entry.foodSize.name} × ${entry.quantity}",
+                                    subtitle = entry.packageLabel,
                                     price = entry.price * entry.quantity,
                                     df = df,
                                     onRemove = { foodOrders = foodOrders.filterIndexed { i, _ -> i != index } }
                                 )
                             }
 
-                            // Beverage items
                             itemsIndexed(beverageOrders) { index, entry ->
                                 PosEditorItemCard(
                                     name = entry.beverageName,
@@ -361,7 +348,6 @@ fun PosOrderEditorScreen(
                                 )
                             }
 
-                            // Total
                             item {
                                 Card(
                                     modifier = Modifier.fillMaxWidth(),
@@ -392,7 +378,6 @@ fun PosOrderEditorScreen(
                             }
                         }
 
-                        // Right: Form
                         Column(
                             modifier = Modifier
                                 .weight(0.35f)
@@ -400,7 +385,6 @@ fun PosOrderEditorScreen(
                                 .padding(16.dp),
                             verticalArrangement = Arrangement.spacedBy(16.dp)
                         ) {
-                            // Waiter & Table
                             PosEditorFormSection(title = "Waiter & Table") {
                                 PosDropdown(
                                     label = "Waiter",
@@ -419,7 +403,6 @@ fun PosOrderEditorScreen(
                                 )
                             }
 
-                            // Food items
                             PosEditorFormSection(title = "Add Food Item") {
                                 Row(
                                     horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -429,17 +412,18 @@ fun PosOrderEditorScreen(
                                         value = foodSerialInput,
                                         onValueChange = { foodSerialInput = it },
                                         label = { Text("Item # or 1*3 or 1 2*3") },
+                                        supportingText = { Text("Leave package as Default for fastest ordering") },
                                         modifier = Modifier.weight(1f),
                                         singleLine = true,
                                         shape = RoundedCornerShape(10.dp)
                                     )
                                     PosDropdown(
-                                        label = "Size",
-                                        selected = selectedFoodSize.name,
-                                        items = FoodSize.entries.toList(),
-                                        itemText = { it.name },
+                                        label = "Package",
+                                        selected = selectedFoodSize?.name ?: "DEFAULT",
+                                        items = listOf<FoodSize?>(null) + FoodSize.entries.toList(),
+                                        itemText = { it?.name ?: "DEFAULT" },
                                         onSelect = { selectedFoodSize = it },
-                                        modifier = Modifier.width(100.dp)
+                                        modifier = Modifier.width(124.dp)
                                     )
                                 }
                                 Spacer(modifier = Modifier.height(8.dp))
@@ -455,7 +439,6 @@ fun PosOrderEditorScreen(
                                 }
                             }
 
-                            // Beverages
                             PosEditorFormSection(title = "Add Beverage") {
                                 PosDropdown(
                                     label = "Beverage",
@@ -505,7 +488,6 @@ fun PosOrderEditorScreen(
 
                             Spacer(modifier = Modifier.weight(1f))
 
-                            // Submit button
                             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                                 OutlinedButton(
                                     onClick = {
@@ -522,8 +504,8 @@ fun PosOrderEditorScreen(
                                     onClick = { submitOrder() },
                                     modifier = Modifier.weight(1f),
                                     shape = RoundedCornerShape(12.dp),
-                                    enabled = selectedWaiter != null && 
-                                            selectedTable != null && 
+                                    enabled = selectedWaiter != null &&
+                                            selectedTable != null &&
                                             (foodOrders.isNotEmpty() || beverageOrders.isNotEmpty()) &&
                                             !uiState.isSaving
                                 ) {
@@ -546,7 +528,6 @@ fun PosOrderEditorScreen(
             }
         }
 
-        // Error Toast
         AnimatedVisibility(
             visible = uiState.errorMessage != null,
             enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
@@ -566,12 +547,20 @@ fun PosOrderEditorScreen(
 private data class FoodOrderEntry(
     val itemNumber: Short,
     val foodName: String,
-    val foodSize: FoodSize,
+    val actualFoodSize: FoodSize,
+    val requestedFoodSize: FoodSize?,
     val quantity: Int,
     val price: Double,
     val discount: Double,
     val discountType: DiscountType
-)
+) {
+    val packageLabel: String
+        get() = if (requestedFoodSize == null) {
+            "Default: ${actualFoodSize.name} × $quantity"
+        } else {
+            "${actualFoodSize.name} × $quantity"
+        }
+}
 
 private data class BeverageOrderEntry(
     val beverageId: Long,

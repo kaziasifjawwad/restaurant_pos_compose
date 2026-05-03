@@ -177,9 +177,10 @@ class FoodItemEditViewModel(
                     FoodPriceRequest(
                         foodPrice = price.foodPrice,
                         foodSize = price.foodSize,
+                        isDefault = price.isDefault,
                         ingredientAmountRequest = price.getIngredients()
                     )
-                }
+                }.ensureSingleDefault()
                 println("[$TAG] loadFoodItemForEdit: Loaded ${foodPrices.size} variants")
                 
             } catch (e: Exception) {
@@ -348,10 +349,11 @@ class FoodItemEditViewModel(
         val variant = FoodPriceRequest(
             foodPrice = price,
             foodSize = size,
+            isDefault = foodPrices.isEmpty(),
             ingredientAmountRequest = currentIngredientAmounts.toList()
         )
 
-        foodPrices = foodPrices + variant
+        foodPrices = (foodPrices + variant).ensureSingleDefault()
 
         // Reset current variant fields
         currentFoodSize = null
@@ -360,11 +362,19 @@ class FoodItemEditViewModel(
     }
 
     /**
+     * Set a variant as the default price package for quick POS ordering.
+     */
+    fun setDefaultFoodVariant(foodSize: FoodSize) {
+        println("[$TAG] setDefaultFoodVariant: Marking size=$foodSize as default")
+        foodPrices = foodPrices.map { it.copy(isDefault = it.foodSize == foodSize) }
+    }
+
+    /**
      * Remove a food variant
      */
     fun removeFoodVariant(foodSize: FoodSize) {
         println("[$TAG] removeFoodVariant: Removing variant with size=$foodSize")
-        foodPrices = foodPrices.filter { it.foodSize != foodSize }
+        foodPrices = foodPrices.filter { it.foodSize != foodSize }.ensureSingleDefault()
     }
 
     // ==================== Validation ====================
@@ -397,6 +407,12 @@ class FoodItemEditViewModel(
             errorMessage = "Please add at least one food variant"
             isValid = false
         }
+
+        val defaultCount = foodPrices.count { it.isDefault }
+        if (foodPrices.isNotEmpty() && defaultCount != 1) {
+            errorMessage = "Please choose exactly one default price package"
+            isValid = false
+        }
         
         println("[$TAG] validate: isValid=$isValid")
         return isValid
@@ -408,6 +424,7 @@ class FoodItemEditViewModel(
      * Save or update the food item
      */
     fun save(onSuccess: () -> Unit) {
+        foodPrices = foodPrices.ensureSingleDefault()
         if (!validate()) {
             println("[$TAG] save: Validation failed")
             return
@@ -476,6 +493,26 @@ class FoodItemEditViewModel(
         itemNumberError = null
         errorMessage = null
         successMessage = null
+    }
+
+    private fun List<FoodPriceRequest>.ensureSingleDefault(): List<FoodPriceRequest> {
+        if (isEmpty()) return this
+        val defaultCount = count { it.isDefault }
+        return when (defaultCount) {
+            1 -> this
+            0 -> mapIndexed { index, price -> price.copy(isDefault = index == 0) }
+            else -> {
+                var defaultAlreadyKept = false
+                map { price ->
+                    if (price.isDefault && !defaultAlreadyKept) {
+                        defaultAlreadyKept = true
+                        price
+                    } else {
+                        price.copy(isDefault = false)
+                    }
+                }
+            }
+        }
     }
 
     /**

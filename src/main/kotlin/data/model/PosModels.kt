@@ -113,11 +113,12 @@ data class FoodOrderByCustomerRequest(
 
 /**
  * Food order line item (request)
+ * foodSize can be null so the backend automatically selects the food item's default price package.
  */
 @Serializable
 data class FoodOrderRequest(
     val itemNumber: Short,
-    val foodSize: FoodSize,
+    val foodSize: FoodSize? = null,
     val foodQuantity: Int = 1,
     val discount: Double = 0.0,
     val discountType: DiscountType = DiscountType.PERCENTAGE
@@ -184,13 +185,15 @@ data class FoodItemShortInfo(
     val id: Long,
     val name: String,
     val itemNumber: Short,
-    val foodPrices: List<FoodPriceInfo> = emptyList()
+    val foodPrices: List<FoodPriceInfo> = emptyList(),
+    val defaultPrice: FoodPriceInfo? = null
 )
 
 @Serializable
 data class FoodPriceInfo(
     val foodSize: FoodSize,
-    val foodPrice: Double
+    val foodPrice: Double,
+    val isDefault: Boolean = false
 )
 
 /**

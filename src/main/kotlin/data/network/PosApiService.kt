@@ -181,7 +181,7 @@ class PosApiService(
     }
 
     /**
-     * Get food items short info for order editor
+     * Get food items for order editor
      * GET /food/item?unpaged=true
      */
     suspend fun getFoodItemsShortInfo(): Result<List<FoodItemShortInfo>> {
@@ -196,18 +196,26 @@ class PosApiService(
                 }
             }
             val pageResponse = handleResponse<PageFoodItemResponse>(response, "Failed to load food items")
-            // Map FoodItemResponse to FoodItemShortInfo
             pageResponse.content.map { item ->
+                val prices = item.foodPrices.map { price ->
+                    FoodPriceInfo(
+                        foodSize = price.foodSize,
+                        foodPrice = price.foodPrice,
+                        isDefault = price.isDefault
+                    )
+                }
                 FoodItemShortInfo(
                     id = item.id,
                     name = item.name,
                     itemNumber = item.itemNumber.toShort(),
-                    foodPrices = item.foodPrices.map { price ->
+                    foodPrices = prices,
+                    defaultPrice = item.defaultPrice?.let { price ->
                         FoodPriceInfo(
                             foodSize = price.foodSize,
-                            foodPrice = price.foodPrice
+                            foodPrice = price.foodPrice,
+                            isDefault = true
                         )
-                    }
+                    } ?: prices.firstOrNull { it.isDefault }
                 )
             }
         }
@@ -258,11 +266,9 @@ class PosApiService(
         return when (response.status) {
             HttpStatusCode.OK, HttpStatusCode.Created -> {
                 try {
-                    // Try normal deserialization first
                     response.body()
                 } catch (e: Exception) {
                     println("[$TAG] Normal deserialization failed: ${e.message}")
-                    // If Content-Type is missing, manually parse JSON
                     try {
                         val bodyText = response.bodyAsText()
                         println("[$TAG] Response body: $bodyText")

@@ -24,6 +24,7 @@ data class FoodItemResponse(
     val description: String? = null,
     val foodCategories: List<FoodCategory> = emptyList(),
     val foodPrices: List<FoodPrice> = emptyList(),
+    val defaultPrice: FoodPrice? = null,
     val itemNumber: Int
 )
 
@@ -38,6 +39,7 @@ data class FoodCategory(
 data class FoodPrice(
     val foodPrice: Double,
     val foodSize: FoodSize,
+    val isDefault: Boolean = false,
     val ingredientAmountRequest: List<IngredientAmountRequest>? = null
 ) {
     /** Get ingredients as non-null list */
@@ -77,6 +79,7 @@ data class FoodItemRequest(
 data class FoodPriceRequest(
     val foodPrice: Double,
     val foodSize: FoodSize,
+    val isDefault: Boolean = false,
     val ingredientAmountRequest: List<IngredientAmountRequest> = emptyList()
 )
 

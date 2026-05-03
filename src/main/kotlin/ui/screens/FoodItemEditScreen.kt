@@ -3,12 +3,8 @@ package ui.screens
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -17,10 +13,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -42,7 +35,6 @@ fun FoodItemEditScreen(
     val viewModel = remember { FoodItemEditViewModel() }
     var isContentVisible by remember { mutableStateOf(false) }
 
-    // Initialize based on mode
     LaunchedEffect(foodItemId) {
         if (foodItemId != null) {
             viewModel.initForEdit(foodItemId)
@@ -53,7 +45,6 @@ fun FoodItemEditScreen(
         isContentVisible = true
     }
 
-    // Show error/success messages
     viewModel.errorMessage?.let { error ->
         LaunchedEffect(error) {
             delay(3000)
@@ -74,13 +65,11 @@ fun FoodItemEditScreen(
             )
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
-            // Header
             EditScreenHeader(
                 isEditMode = viewModel.isEditMode,
                 onBack = onNavigateBack
             )
 
-            // Main content
             if (viewModel.isLoading || viewModel.isLoadingLookups) {
                 LoadingContent()
             } else {
@@ -95,7 +84,6 @@ fun FoodItemEditScreen(
                         verticalArrangement = Arrangement.spacedBy(24.dp),
                         contentPadding = PaddingValues(vertical = 24.dp)
                     ) {
-                        // Section 1: Basic Info
                         item {
                             BasicInfoSection(
                                 foodName = viewModel.foodName,
@@ -107,7 +95,6 @@ fun FoodItemEditScreen(
                             )
                         }
 
-                        // Section 2: Food Categories
                         item {
                             CategorySection(
                                 availableCategories = viewModel.getAvailableCategories(),
@@ -117,7 +104,6 @@ fun FoodItemEditScreen(
                             )
                         }
 
-                        // Section 3: Food Variant Builder
                         item {
                             VariantBuilderSection(
                                 availableSizes = viewModel.getAvailableFoodSizes(),
@@ -141,15 +127,14 @@ fun FoodItemEditScreen(
                             )
                         }
 
-                        // Section 4: Added Variants
                         item {
                             AddedVariantsSection(
                                 variants = viewModel.foodPrices,
+                                onSetDefaultVariant = viewModel::setDefaultFoodVariant,
                                 onRemoveVariant = viewModel::removeFoodVariant
                             )
                         }
 
-                        // Section 5: Description
                         item {
                             DescriptionSection(
                                 description = viewModel.description,
@@ -157,7 +142,6 @@ fun FoodItemEditScreen(
                             )
                         }
 
-                        // Action Buttons
                         item {
                             ActionButtonsSection(
                                 isEditMode = viewModel.isEditMode,
@@ -167,14 +151,12 @@ fun FoodItemEditScreen(
                             )
                         }
 
-                        // Bottom spacing
                         item { Spacer(modifier = Modifier.height(32.dp)) }
                     }
                 }
             }
         }
 
-        // Error Message Toast
         viewModel.errorMessage?.let { error ->
             ErrorToast(
                 message = error,
@@ -182,7 +164,6 @@ fun FoodItemEditScreen(
             )
         }
 
-        // Success Message Toast
         viewModel.successMessage?.let { message ->
             SuccessToast(
                 message = message,
@@ -208,7 +189,6 @@ private fun EditScreenHeader(
                 .padding(horizontal = 16.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Back button
             IconButton(onClick = onBack) {
                 Icon(
                     imageVector = Icons.Default.ArrowBack,
@@ -219,7 +199,6 @@ private fun EditScreenHeader(
 
             Spacer(modifier = Modifier.width(12.dp))
 
-            // Title
             Column {
                 Text(
                     text = if (isEditMode) "Edit Food Item" else "Create Food Item",
@@ -257,8 +236,6 @@ private fun LoadingContent() {
     }
 }
 
-// ==================== Section 1: Basic Info ====================
-
 @Composable
 private fun BasicInfoSection(
     foodName: String,
@@ -273,7 +250,6 @@ private fun BasicInfoSection(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Food Name
             OutlinedTextField(
                 value = foodName,
                 onValueChange = onFoodNameChange,
@@ -285,7 +261,6 @@ private fun BasicInfoSection(
                 singleLine = true
             )
 
-            // Serial Number
             OutlinedTextField(
                 value = itemNumber,
                 onValueChange = onItemNumberChange,
@@ -300,8 +275,6 @@ private fun BasicInfoSection(
     }
 }
 
-// ==================== Section 2: Categories ====================
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun CategorySection(
@@ -314,7 +287,6 @@ private fun CategorySection(
     var selectedCategory by remember { mutableStateOf<FoodCategory?>(null) }
 
     FormSection(title = "Food Categories", icon = Icons.Outlined.Category) {
-        // Dropdown
         ExposedDropdownMenuBox(
             expanded = expanded,
             onExpandedChange = { expanded = it }
@@ -358,7 +330,6 @@ private fun CategorySection(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Selected Categories List
         if (selectedCategories.isEmpty()) {
             Surface(
                 modifier = Modifier.fillMaxWidth(),
@@ -421,8 +392,6 @@ private fun CategoryChip(
     }
 }
 
-// ==================== Section 3: Variant Builder ====================
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun VariantBuilderSection(
@@ -446,12 +415,35 @@ private fun VariantBuilderSection(
     onAddVariant: () -> Unit
 ) {
     FormSection(title = "Food Variant", icon = Icons.Outlined.RestaurantMenu) {
-        // Row 1: Size and Price
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(12.dp),
+            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f)
+        ) {
+            Row(
+                modifier = Modifier.padding(12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Star,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary
+                )
+                Text(
+                    text = "Add all price packages here. In the Added Variants section, mark one package as Default for fast POS ordering.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Size Dropdown
             var sizeExpanded by remember { mutableStateOf(false) }
             ExposedDropdownMenuBox(
                 expanded = sizeExpanded,
@@ -484,7 +476,6 @@ private fun VariantBuilderSection(
                 }
             }
 
-            // Price Input
             OutlinedTextField(
                 value = currentPrice,
                 onValueChange = onPriceChange,
@@ -496,10 +487,7 @@ private fun VariantBuilderSection(
         }
 
         Spacer(modifier = Modifier.height(16.dp))
-
-        // Divider
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-        
         Spacer(modifier = Modifier.height(16.dp))
 
         Text(
@@ -511,13 +499,11 @@ private fun VariantBuilderSection(
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        // Row 2: Ingredient, Amount, Unit
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.Top
         ) {
-            // Ingredient Dropdown
             var ingredientExpanded by remember { mutableStateOf(false) }
             ExposedDropdownMenuBox(
                 expanded = ingredientExpanded,
@@ -550,7 +536,6 @@ private fun VariantBuilderSection(
                 }
             }
 
-            // Amount Input
             OutlinedTextField(
                 value = currentAmount,
                 onValueChange = onAmountChange,
@@ -560,7 +545,6 @@ private fun VariantBuilderSection(
                 singleLine = true
             )
 
-            // Unit Dropdown
             var unitExpanded by remember { mutableStateOf(false) }
             ExposedDropdownMenuBox(
                 expanded = unitExpanded,
@@ -593,7 +577,6 @@ private fun VariantBuilderSection(
                 }
             }
 
-            // Add Ingredient Button
             Button(
                 onClick = onAddIngredient,
                 enabled = canAddIngredient,
@@ -609,10 +592,9 @@ private fun VariantBuilderSection(
             }
         }
 
-        // Current Ingredients List
         if (currentIngredientAmounts.isNotEmpty()) {
             Spacer(modifier = Modifier.height(16.dp))
-            
+
             Surface(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp),
@@ -631,7 +613,6 @@ private fun VariantBuilderSection(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Add Variant Button
         Button(
             onClick = onAddVariant,
             enabled = canAddVariant,
@@ -688,11 +669,10 @@ private fun IngredientRow(
     }
 }
 
-// ==================== Section 4: Added Variants ====================
-
 @Composable
 private fun AddedVariantsSection(
     variants: List<FoodPriceRequest>,
+    onSetDefaultVariant: (FoodSize) -> Unit,
     onRemoveVariant: (FoodSize) -> Unit
 ) {
     FormSection(title = "Added Variants", icon = Icons.Outlined.List) {
@@ -703,17 +683,43 @@ private fun AddedVariantsSection(
                 color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f)
             ) {
                 Text(
-                    text = "Please add at least one food variant",
+                    text = "Please add at least one food variant. The first variant will become the default automatically.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.error,
                     modifier = Modifier.padding(12.dp)
                 )
             }
         } else {
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.35f)
+            ) {
+                Row(
+                    modifier = Modifier.padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.TouchApp,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.secondary
+                    )
+                    Text(
+                        text = "Default package is used automatically in New Order when the cashier does not choose a package.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSecondaryContainer
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 variants.forEach { variant ->
                     VariantCard(
                         variant = variant,
+                        onSetDefault = { onSetDefaultVariant(variant.foodSize) },
                         onRemove = { onRemoveVariant(variant.foodSize) }
                     )
                 }
@@ -725,19 +731,28 @@ private fun AddedVariantsSection(
 @Composable
 private fun VariantCard(
     variant: FoodPriceRequest,
+    onSetDefault: () -> Unit,
     onRemove: () -> Unit
 ) {
     var expanded by remember { mutableStateOf(true) }
-    
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant
-        )
+            containerColor = if (variant.isDefault) {
+                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
+            } else {
+                MaterialTheme.colorScheme.surfaceVariant
+            }
+        ),
+        border = if (variant.isDefault) {
+            BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.55f))
+        } else {
+            null
+        }
     ) {
         Column {
-            // Header
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -752,13 +767,21 @@ private fun VariantCard(
                 ) {
                     Surface(
                         shape = RoundedCornerShape(8.dp),
-                        color = MaterialTheme.colorScheme.primaryContainer
+                        color = if (variant.isDefault) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            MaterialTheme.colorScheme.primaryContainer
+                        }
                     ) {
                         Text(
                             text = variant.foodSize.name,
                             style = MaterialTheme.typography.labelLarge,
                             fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                            color = if (variant.isDefault) {
+                                MaterialTheme.colorScheme.onPrimary
+                            } else {
+                                MaterialTheme.colorScheme.onPrimaryContainer
+                            },
                             modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
                         )
                     }
@@ -768,9 +791,26 @@ private fun VariantCard(
                         fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.primary
                     )
+                    DefaultBadge(isDefault = variant.isDefault)
                 }
 
-                Row {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (!variant.isDefault) {
+                        OutlinedButton(
+                            onClick = onSetDefault,
+                            modifier = Modifier.height(36.dp),
+                            shape = RoundedCornerShape(18.dp),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.StarBorder,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Set Default")
+                        }
+                    }
                     IconButton(onClick = { expanded = !expanded }) {
                         Icon(
                             imageVector = if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
@@ -787,7 +827,6 @@ private fun VariantCard(
                 }
             }
 
-            // Ingredients List (Expandable)
             AnimatedVisibility(visible = expanded) {
                 if (variant.ingredientAmountRequest.isNotEmpty()) {
                     Column(
@@ -797,8 +836,7 @@ private fun VariantCard(
                     ) {
                         HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
                         Spacer(modifier = Modifier.height(8.dp))
-                        
-                        // Table Header
+
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween
@@ -824,9 +862,9 @@ private fun VariantCard(
                                 textAlign = TextAlign.End
                             )
                         }
-                        
+
                         Spacer(modifier = Modifier.height(4.dp))
-                        
+
                         variant.ingredientAmountRequest.forEach { ingredient ->
                             Row(
                                 modifier = Modifier
@@ -867,7 +905,35 @@ private fun VariantCard(
     }
 }
 
-// ==================== Section 5: Description ====================
+@Composable
+private fun DefaultBadge(isDefault: Boolean) {
+    if (!isDefault) return
+
+    Surface(
+        shape = RoundedCornerShape(18.dp),
+        color = MaterialTheme.colorScheme.primary,
+        tonalElevation = 1.dp
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(5.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Default.Star,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onPrimary,
+                modifier = Modifier.size(14.dp)
+            )
+            Text(
+                text = "DEFAULT",
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onPrimary
+            )
+        }
+    }
+}
 
 @Composable
 private fun DescriptionSection(
@@ -888,8 +954,6 @@ private fun DescriptionSection(
     }
 }
 
-// ==================== Action Buttons ====================
-
 @Composable
 private fun ActionButtonsSection(
     isEditMode: Boolean,
@@ -902,7 +966,6 @@ private fun ActionButtonsSection(
         horizontalArrangement = Arrangement.End,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Cancel Button
         OutlinedButton(
             onClick = onCancel,
             modifier = Modifier.height(48.dp),
@@ -913,7 +976,6 @@ private fun ActionButtonsSection(
 
         Spacer(modifier = Modifier.width(16.dp))
 
-        // Save Button
         Button(
             onClick = onSave,
             enabled = !isSaving,
@@ -939,8 +1001,6 @@ private fun ActionButtonsSection(
         }
     }
 }
-
-// ==================== Helper Components ====================
 
 @Composable
 private fun FormSection(
@@ -1046,4 +1106,3 @@ private fun SuccessToast(
         }
     }
 }
-

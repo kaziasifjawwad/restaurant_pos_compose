@@ -3,7 +3,7 @@ package data.network
 import data.auth.AuthManager
 import data.config.AppConfig
 import data.model.PosOrderDetailResponse
-import data.model.PosReportPage
+import data.model.PosReportDashboardResponse
 import io.ktor.client.call.*
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
@@ -13,7 +13,7 @@ import java.io.File
 class ReportApiService {
     private val client = HttpClientProvider.client
     private val baseUrl = AppConfig.BASE_URL
-    
+
     companion object {
         private const val TAG = "ReportApiService"
     }
@@ -26,32 +26,38 @@ class ReportApiService {
             println("[$TAG] Warning: No auth token found")
         }
     }
-    
-    /**
-     * Get paginated POS reports
-     */
+
     suspend fun getPosReports(
         page: Int = 0,
         size: Int = 10,
-        unpaged: Boolean = false
-    ): PosReportPage {
-        println("[$TAG] Getting POS reports: page=$page, size=$size")
+        unpaged: Boolean = false,
+        dateFrom: String? = null,
+        dateTo: String? = null,
+        waiterId: String? = null,
+        amountFrom: String? = null,
+        amountTo: String? = null,
+        orderStatus: String? = null
+    ): PosReportDashboardResponse {
+        println("[$TAG] Getting POS dashboard report: page=$page, size=$size")
         return try {
             client.get("$baseUrl/report/pos") {
                 auth()
                 parameter("page", page)
                 parameter("size", size)
                 parameter("unpaged", unpaged)
+                if (!dateFrom.isNullOrBlank()) parameter("dateFrom", dateFrom)
+                if (!dateTo.isNullOrBlank()) parameter("dateTo", dateTo)
+                if (!waiterId.isNullOrBlank()) parameter("waiterId", waiterId)
+                if (!amountFrom.isNullOrBlank()) parameter("amountFrom", amountFrom)
+                if (!amountTo.isNullOrBlank()) parameter("amountTo", amountTo)
+                if (!orderStatus.isNullOrBlank()) parameter("orderStatus", orderStatus)
             }.body()
         } catch (e: Exception) {
             println("[$TAG] Error getting POS reports: ${e.message}")
             throw e
         }
     }
-    
-    /**
-     * Get single POS order detail
-     */
+
     suspend fun getPosOrderDetail(orderId: String): PosOrderDetailResponse {
         println("[$TAG] Getting POS order detail: $orderId")
         return try {
@@ -63,10 +69,7 @@ class ReportApiService {
             throw e
         }
     }
-    
-    /**
-     * Download POS report as PDF
-     */
+
     suspend fun downloadPosReportPdf(
         dateFrom: String?,
         dateTo: String?,
@@ -79,7 +82,7 @@ class ReportApiService {
                 if (dateFrom != null) parameter("dateFrom", dateFrom)
                 if (dateTo != null) parameter("dateTo", dateTo)
             }
-            
+
             if (response.status.isSuccess()) {
                 val bytes = response.body<ByteArray>()
                 outputFile.writeBytes(bytes)

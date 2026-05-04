@@ -37,14 +37,11 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Error
-import androidx.compose.material.icons.outlined.AttachMoney
-import androidx.compose.material.icons.outlined.Cancel
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.CreditCard
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.LocalDrink
 import androidx.compose.material.icons.outlined.Payments
-import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.PhoneAndroid
 import androidx.compose.material.icons.outlined.Print
 import androidx.compose.material.icons.outlined.Refresh
@@ -78,7 +75,6 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import data.model.BeverageOrder
-import data.model.DiscountType
 import data.model.FoodOrder
 import data.model.FoodOrderByCustomer
 import data.model.OrderStatus
@@ -87,16 +83,12 @@ import data.model.PaymentMethodResponse
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import ui.theme.AppAnimations
-import ui.theme.ExtendedTypography
 import ui.viewmodel.PosUiEvent
 import ui.viewmodel.PosViewModel
 import java.text.DecimalFormat
 
 private val Goldenrod = Color(0xFFD4AF37)
 private val Slate900 = Color(0xFF0F172A)
-private val Slate800 = Color(0xFF1E293B)
-private val Slate700 = Color(0xFF334155)
-private val Slate100 = Color(0xFFF1F5F9)
 
 @Composable
 fun PosOrderDetailScreen(
@@ -128,7 +120,7 @@ fun PosOrderDetailScreen(
             .fillMaxSize()
             .background(
                 Brush.verticalGradient(
-                    colors = listOf(
+                    listOf(
                         MaterialTheme.colorScheme.background,
                         MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.10f)
                     )
@@ -145,22 +137,20 @@ fun PosOrderDetailScreen(
                 onEdit = { onNavigateToEdit(orderId) }
             )
 
-            val isClosingAfterSuccessfulAction = uiState.successMessage != null && uiState.selectedOrder == null
+            val closingAfterSuccess = uiState.successMessage != null && uiState.selectedOrder == null
             when {
                 uiState.isLoadingDetail -> PosDetailLoadingContent()
-                uiState.selectedOrder != null -> {
-                    AnimatedVisibility(
-                        visible = isContentVisible,
-                        enter = fadeIn(animationSpec = tween(AppAnimations.DURATION_ENTRANCE))
-                    ) {
-                        OrderDetailsCheckoutContent(
-                            order = uiState.selectedOrder!!,
-                            paymentMethods = uiState.paymentMethods,
-                            viewModel = viewModel
-                        )
-                    }
+                uiState.selectedOrder != null -> AnimatedVisibility(
+                    visible = isContentVisible,
+                    enter = fadeIn(animationSpec = tween(AppAnimations.DURATION_ENTRANCE))
+                ) {
+                    OrderDetailsCheckoutContent(
+                        order = uiState.selectedOrder!!,
+                        paymentMethods = uiState.paymentMethods,
+                        viewModel = viewModel
+                    )
                 }
-                isClosingAfterSuccessfulAction -> PosDetailClosingContent()
+                closingAfterSuccess -> PosDetailClosingContent()
                 else -> PosDetailErrorContent(onRetry = { viewModel.onEvent(PosUiEvent.LoadOrderDetail(orderId)) })
             }
         }
@@ -171,7 +161,7 @@ fun PosOrderDetailScreen(
             exit = slideOutVertically(targetOffsetY = { it }) + fadeOut(),
             modifier = Modifier.align(Alignment.BottomCenter)
         ) {
-            PosToast(message = uiState.errorMessage ?: "", isError = true, modifier = Modifier.padding(16.dp))
+            PosToast(message = uiState.errorMessage.orEmpty(), isError = true, modifier = Modifier.padding(16.dp))
         }
 
         AnimatedVisibility(
@@ -180,17 +170,17 @@ fun PosOrderDetailScreen(
             exit = slideOutVertically(targetOffsetY = { it }) + fadeOut(),
             modifier = Modifier.align(Alignment.BottomCenter)
         ) {
-            PosToast(message = uiState.successMessage ?: "", isError = false, modifier = Modifier.padding(16.dp))
+            PosToast(
+                message = uiState.successMessage.toPremiumSuccessMessage(),
+                isError = false,
+                modifier = Modifier.padding(16.dp)
+            )
         }
     }
 }
 
 @Composable
-private fun CheckoutHeader(
-    order: FoodOrderByCustomer?,
-    onBack: () -> Unit,
-    onEdit: () -> Unit
-) {
+private fun CheckoutHeader(order: FoodOrderByCustomer?, onBack: () -> Unit, onEdit: () -> Unit) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
         color = MaterialTheme.colorScheme.surface,
@@ -213,31 +203,15 @@ private fun CheckoutHeader(
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurface
                         )
-                        if (order != null) {
-                            Surface(
-                                shape = RoundedCornerShape(999.dp),
-                                color = Goldenrod.copy(alpha = 0.16f),
-                                border = BorderStroke(1.dp, Goldenrod.copy(alpha = 0.45f))
-                            ) {
-                                Text(
-                                    text = "Table #${order.tableNumber}",
-                                    style = MaterialTheme.typography.labelLarge,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Goldenrod,
-                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 5.dp)
-                                )
-                            }
-                        }
+                        if (order != null) TableBadge(order.tableNumber)
                     }
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         Text(
                             text = order?.waiterName ?: "Waiter loading...",
-                            style = ExtendedTypography.caption,
+                            style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
-                        if (order != null) {
-                            SoftStatusPill(order.orderStatus)
-                        }
+                        if (order != null) SoftStatusPill(order.orderStatus)
                     }
                 }
             }
@@ -250,6 +224,23 @@ private fun CheckoutHeader(
 }
 
 @Composable
+private fun TableBadge(tableNumber: Int) {
+    Surface(
+        shape = RoundedCornerShape(999.dp),
+        color = Goldenrod.copy(alpha = 0.16f),
+        border = BorderStroke(1.dp, Goldenrod.copy(alpha = 0.45f))
+    ) {
+        Text(
+            text = "Table #$tableNumber",
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.Bold,
+            color = Goldenrod,
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 5.dp)
+        )
+    }
+}
+
+@Composable
 private fun SoftStatusPill(status: OrderStatus) {
     val color = when (status) {
         OrderStatus.ORDER_PLACED -> Goldenrod
@@ -257,6 +248,7 @@ private fun SoftStatusPill(status: OrderStatus) {
         OrderStatus.PAID -> Color(0xFF22C55E)
         OrderStatus.CANCELED -> Color(0xFFEF4444)
     }
+
     Surface(
         shape = RoundedCornerShape(999.dp),
         color = color.copy(alpha = 0.14f),
@@ -284,11 +276,7 @@ private fun OrderDetailsCheckoutContent(
         modifier = Modifier.fillMaxSize().padding(20.dp),
         horizontalArrangement = Arrangement.spacedBy(20.dp)
     ) {
-        OrderFeedColumn(
-            order = order,
-            df = df,
-            modifier = Modifier.weight(0.60f).fillMaxHeight()
-        )
+        OrderFeedColumn(order = order, df = df, modifier = Modifier.weight(0.60f).fillMaxHeight())
         CheckoutEngine(
             order = order,
             paymentMethods = paymentMethods,
@@ -308,14 +296,9 @@ private fun OrderFeedColumn(order: FoodOrderByCustomer, df: DecimalFormat, modif
     ) {
         item {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text("Order Feed", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
                 Text(
-                    "Order Feed",
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                Text(
-                    "Grouped kitchen and beverage items with live checkout summary",
+                    "Grouped food and beverage items for fast review before checkout",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -324,16 +307,12 @@ private fun OrderFeedColumn(order: FoodOrderByCustomer, df: DecimalFormat, modif
 
         if (order.foodOrders.isNotEmpty()) {
             item { FeedSectionTitle("Food", order.foodOrders.size, Icons.Outlined.Restaurant) }
-            itemsIndexed(order.foodOrders) { index, item ->
-                FoodItemCard(index = index + 1, item = item, df = df)
-            }
+            itemsIndexed(order.foodOrders) { index, item -> FoodItemCard(index + 1, item, df) }
         }
 
         if (order.beverageOrders.isNotEmpty()) {
             item { FeedSectionTitle("Beverages", order.beverageOrders.size, Icons.Outlined.LocalDrink) }
-            itemsIndexed(order.beverageOrders) { index, item ->
-                BeverageItemCard(index = index + 1, item = item, df = df)
-            }
+            itemsIndexed(order.beverageOrders) { index, item -> BeverageItemCard(index + 1, item, df) }
         }
     }
 }
@@ -380,7 +359,7 @@ private fun BeverageItemCard(index: Int, item: BeverageOrder, df: DecimalFormat)
         index = index,
         icon = Icons.Outlined.LocalDrink,
         title = item.beverageName ?: "Beverage #${item.beverageId}",
-        meta = "${item.quantity} ${item.unit?.name ?: ""}",
+        meta = "${item.quantity} ${item.unit?.name.orEmpty()}",
         quantity = item.amount.toString(),
         unitPrice = item.price,
         lineTotal = item.price * item.amount,
@@ -403,7 +382,10 @@ private fun PremiumItemCard(
     val isHovered by interactionSource.collectIsHoveredAsState()
     val isPressed by interactionSource.collectIsPressedAsState()
     val elevation by animateDpAsState(if (isHovered) 8.dp else 2.dp, tween(AppAnimations.DURATION_FAST))
-    val scale by animateFloatAsState(if (isPressed) 0.98f else if (isHovered) 1.01f else 1f, tween(AppAnimations.DURATION_FAST))
+    val scale by animateFloatAsState(
+        if (isPressed) 0.98f else if (isHovered) 1.01f else 1f,
+        tween(AppAnimations.DURATION_FAST)
+    )
     val borderColor by animateColorAsState(
         if (isHovered) Goldenrod.copy(alpha = 0.55f) else MaterialTheme.colorScheme.outline.copy(alpha = 0.14f),
         tween(AppAnimations.DURATION_FAST)
@@ -454,17 +436,12 @@ private fun CheckoutEngine(
     viewModel: PosViewModel,
     modifier: Modifier = Modifier
 ) {
-    var selectedPaymentMethod by remember(order.id, paymentMethods) { mutableStateOf<PaymentMethod?>(null) }
+    var selectedPaymentMethod by remember(order.id) { mutableStateOf<PaymentMethod?>(null) }
     var isCompleting by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
-
     val subtotal = remember(order) {
-        order.foodOrders.sumOf { it.foodPrice * it.foodQuantity } +
-            order.beverageOrders.sumOf { it.price * it.amount }
+        order.foodOrders.sumOf { it.foodPrice * it.foodQuantity } + order.beverageOrders.sumOf { it.price * it.amount }
     }
-    val tax = 0.0
-    val discount = order.discount
-    val grandTotal = order.totalAmount
 
     Card(
         modifier = modifier,
@@ -482,8 +459,7 @@ private fun CheckoutEngine(
                 Text("Choose a payment method to unlock completion", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
 
-            FinancialBreakdown(subtotal = subtotal, tax = tax, discount = discount, grandTotal = grandTotal, df = df)
-
+            FinancialBreakdown(subtotal = subtotal, tax = 0.0, discount = order.discount, grandTotal = order.totalAmount, df = df)
             HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.18f))
 
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -575,40 +551,24 @@ private fun PaymentActionTiles(
     selectedPaymentMethod: PaymentMethod?,
     onSelect: (PaymentMethod) -> Unit
 ) {
-    val cash = paymentMethods.firstOrNull { it.methodCode == PaymentMethod.CASH }
-    val card = paymentMethods.firstOrNull { it.methodCode == PaymentMethod.CREDIT_CARD }
-    val mobile = paymentMethods
-        .filter { it.methodCode == PaymentMethod.BKASH || it.methodCode == PaymentMethod.ROCKET || it.methodCode == PaymentMethod.NAGAD }
+    val mobileMethod = paymentMethods
+        .filter { it.active && it.methodCode in listOf(PaymentMethod.BKASH, PaymentMethod.ROCKET, PaymentMethod.NAGAD) }
         .let { methods -> methods.firstOrNull { it.defaultMethod } ?: methods.firstOrNull() }
+        ?.methodCode ?: PaymentMethod.BKASH
 
-    val options = listOfNotNull(
-        cash?.let { PaymentTileOption("Cash", it.displayName, Icons.Outlined.Payments, it) },
-        card?.let { PaymentTileOption("Card", it.displayName, Icons.Outlined.CreditCard, it) },
-        mobile?.let { PaymentTileOption("Mobile Pay", it.displayName, Icons.Outlined.PhoneAndroid, it) }
+    val options = listOf(
+        PaymentTileOption("Cash", "Counter cash", Icons.Outlined.Payments, PaymentMethod.CASH),
+        PaymentTileOption("Card", "Debit / credit", Icons.Outlined.CreditCard, PaymentMethod.CREDIT_CARD),
+        PaymentTileOption("Mobile Pay", mobileMethod.displayName, Icons.Outlined.PhoneAndroid, mobileMethod)
     )
-
-    if (options.isEmpty()) {
-        Surface(
-            shape = RoundedCornerShape(14.dp),
-            color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.55f)
-        ) {
-            Text(
-                "No active payment method found. Please configure payment methods first.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.error,
-                modifier = Modifier.padding(14.dp)
-            )
-        }
-        return
-    }
 
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         options.forEach { option ->
             PaymentTile(
                 option = option,
-                selected = selectedPaymentMethod == option.method.methodCode,
+                selected = selectedPaymentMethod == option.method,
                 modifier = Modifier.weight(1f),
-                onClick = { onSelect(option.method.methodCode) }
+                onClick = { onSelect(option.method) }
             )
         }
     }
@@ -618,7 +578,7 @@ private data class PaymentTileOption(
     val title: String,
     val subtitle: String,
     val icon: ImageVector,
-    val method: PaymentMethodResponse
+    val method: PaymentMethod
 )
 
 @Composable
@@ -626,8 +586,14 @@ private fun PaymentTile(option: PaymentTileOption, selected: Boolean, modifier: 
     val interactionSource = remember { MutableInteractionSource() }
     val isHovered by interactionSource.collectIsHoveredAsState()
     val isPressed by interactionSource.collectIsPressedAsState()
-    val borderColor by animateColorAsState(if (selected) Goldenrod else if (isHovered) Goldenrod.copy(alpha = 0.55f) else MaterialTheme.colorScheme.outline.copy(alpha = 0.16f), tween(AppAnimations.DURATION_FAST))
-    val backgroundColor by animateColorAsState(if (selected) Goldenrod.copy(alpha = 0.14f) else if (isHovered) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.42f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.22f), tween(AppAnimations.DURATION_FAST))
+    val borderColor by animateColorAsState(
+        if (selected) Goldenrod else if (isHovered) Goldenrod.copy(alpha = 0.55f) else MaterialTheme.colorScheme.outline.copy(alpha = 0.16f),
+        tween(AppAnimations.DURATION_FAST)
+    )
+    val backgroundColor by animateColorAsState(
+        if (selected) Goldenrod.copy(alpha = 0.14f) else if (isHovered) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.42f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.22f),
+        tween(AppAnimations.DURATION_FAST)
+    )
     val scale by animateFloatAsState(if (isPressed) 0.98f else if (selected) 1.04f else 1f, tween(AppAnimations.DURATION_FAST))
 
     Surface(
@@ -650,7 +616,7 @@ private fun PaymentTile(option: PaymentTileOption, selected: Boolean, modifier: 
                 }
             }
             if (selected) {
-                Surface(shape = RoundedCornerShape(999.dp), color = Goldenrod) {
+                Surface(shape = RoundedCornerShape(999.dp), color = Goldenrod, modifier = Modifier.align(Alignment.TopEnd)) {
                     Icon(Icons.Default.Check, null, tint = Slate900, modifier = Modifier.padding(4.dp).size(14.dp))
                 }
             }
@@ -659,13 +625,7 @@ private fun PaymentTile(option: PaymentTileOption, selected: Boolean, modifier: 
 }
 
 @Composable
-private fun BistroPrimaryButton(
-    text: String,
-    icon: ImageVector,
-    enabled: Boolean,
-    loading: Boolean,
-    onClick: () -> Unit
-) {
+private fun BistroPrimaryButton(text: String, icon: ImageVector, enabled: Boolean, loading: Boolean, onClick: () -> Unit) {
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
     val scale by animateFloatAsState(if (isPressed) 0.98f else 1f, tween(AppAnimations.DURATION_FAST))
@@ -683,23 +643,15 @@ private fun BistroPrimaryButton(
             disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f)
         )
     ) {
-        if (loading) {
-            CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp, color = Slate900)
-        } else {
-            Icon(icon, null, modifier = Modifier.size(21.dp))
-        }
+        if (loading) CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp, color = Slate900)
+        else Icon(icon, null, modifier = Modifier.size(21.dp))
         Spacer(Modifier.width(10.dp))
         Text(text, fontWeight = FontWeight.Black)
     }
 }
 
 @Composable
-private fun BistroSecondaryButton(
-    text: String,
-    icon: ImageVector,
-    modifier: Modifier = Modifier,
-    onClick: () -> Unit
-) {
+private fun BistroSecondaryButton(text: String, icon: ImageVector, modifier: Modifier = Modifier, onClick: () -> Unit) {
     val interactionSource = remember { MutableInteractionSource() }
     val isHovered by interactionSource.collectIsHoveredAsState()
     val isPressed by interactionSource.collectIsPressedAsState()
@@ -723,17 +675,20 @@ private fun BistroSecondaryButton(
 private fun TextButtonLikeCancel(enabled: Boolean, onClick: () -> Unit) {
     val interactionSource = remember { MutableInteractionSource() }
     val isHovered by interactionSource.collectIsHoveredAsState()
-    Text(
-        text = "Cancel Order",
-        modifier = Modifier
-            .align(Alignment.CenterHorizontally)
-            .hoverable(interactionSource)
-            .clickable(enabled = enabled, interactionSource = interactionSource, indication = null, onClick = onClick)
-            .padding(8.dp),
-        style = MaterialTheme.typography.labelLarge,
-        fontWeight = FontWeight.SemiBold,
-        color = if (!enabled) MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f) else if (isHovered) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.error.copy(alpha = 0.72f)
-    )
+    Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+        Text(
+            text = "Cancel Order",
+            modifier = Modifier
+                .hoverable(interactionSource)
+                .clickable(enabled = enabled, interactionSource = interactionSource, indication = null, onClick = onClick)
+                .padding(8.dp),
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.SemiBold,
+            color = if (!enabled) MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f)
+            else if (isHovered) MaterialTheme.colorScheme.error
+            else MaterialTheme.colorScheme.error.copy(alpha = 0.72f)
+        )
+    }
 }
 
 @Composable
@@ -787,14 +742,18 @@ private fun PosToast(message: String, isError: Boolean, modifier: Modifier = Mod
             Icon(
                 imageVector = if (isError) Icons.Default.Error else Icons.Default.CheckCircle,
                 contentDescription = null,
-                tint = if (isError) MaterialTheme.colorScheme.error else Color(0xFF15803D)
+                tint = if (isError) MaterialTheme.colorScheme.error else Color(0xFF15803D),
+                modifier = Modifier.size(22.dp)
             )
             Text(
                 text = message,
+                color = if (isError) MaterialTheme.colorScheme.onErrorContainer else Color(0xFF14532D),
                 style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.SemiBold,
-                color = if (isError) MaterialTheme.colorScheme.onErrorContainer else Color(0xFF14532D)
+                fontWeight = FontWeight.SemiBold
             )
         }
     }
 }
+
+private fun String?.toPremiumSuccessMessage(): String =
+    if (this.equals("Order completed successfully", ignoreCase = true)) "Order Completed Successfully" else this.orEmpty()

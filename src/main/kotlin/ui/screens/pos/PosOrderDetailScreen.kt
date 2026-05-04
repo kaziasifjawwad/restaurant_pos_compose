@@ -632,14 +632,14 @@ private fun PaymentTile(option: PaymentTileOption, selected: Boolean, modifier: 
     val isHovered by interactionSource.collectIsHoveredAsState()
     val isPressed by interactionSource.collectIsPressedAsState()
     val borderColor by animateColorAsState(
-        if (selected) Goldenrod else if (isHovered) Goldenrod.copy(alpha = 0.55f) else MaterialTheme.colorScheme.outline.copy(alpha = 0.16f),
+        if (selected) Goldenrod.copy(alpha = 0.88f) else if (isHovered) Goldenrod.copy(alpha = 0.42f) else MaterialTheme.colorScheme.outline.copy(alpha = 0.16f),
         tween(AppAnimations.DURATION_FAST)
     )
     val backgroundColor by animateColorAsState(
-        if (selected) Goldenrod.copy(alpha = 0.14f) else if (isHovered) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.42f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.22f),
+        if (selected) Goldenrod.copy(alpha = 0.08f) else if (isHovered) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.34f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.22f),
         tween(AppAnimations.DURATION_FAST)
     )
-    val scale by animateFloatAsState(if (isPressed) 0.98f else if (selected) 1.04f else 1f, tween(AppAnimations.DURATION_FAST))
+    val scale by animateFloatAsState(if (isPressed) 0.98f else if (isHovered) 1.01f else 1f, tween(AppAnimations.DURATION_FAST))
 
     Surface(
         modifier = modifier
@@ -649,8 +649,8 @@ private fun PaymentTile(option: PaymentTileOption, selected: Boolean, modifier: 
             .graphicsLayer { scaleX = scale; scaleY = scale },
         shape = RoundedCornerShape(18.dp),
         color = backgroundColor,
-        border = BorderStroke(if (selected) 3.dp else 1.dp, borderColor),
-        shadowElevation = if (selected) 6.dp else if (isHovered) 4.dp else 0.dp
+        border = BorderStroke(if (selected) 1.5.dp else 1.dp, borderColor),
+        shadowElevation = if (selected) 2.dp else if (isHovered) 3.dp else 0.dp
     ) {
         Box(modifier = Modifier.fillMaxSize().padding(12.dp)) {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.align(Alignment.CenterStart)) {
@@ -661,8 +661,8 @@ private fun PaymentTile(option: PaymentTileOption, selected: Boolean, modifier: 
                 }
             }
             if (selected) {
-                Surface(shape = RoundedCornerShape(999.dp), color = Goldenrod, modifier = Modifier.align(Alignment.TopEnd)) {
-                    Icon(Icons.Default.Check, null, tint = Slate900, modifier = Modifier.padding(4.dp).size(14.dp))
+                Surface(shape = RoundedCornerShape(999.dp), color = Goldenrod.copy(alpha = 0.95f), modifier = Modifier.align(Alignment.TopEnd)) {
+                    Icon(Icons.Default.Check, null, tint = Slate900, modifier = Modifier.padding(3.dp).size(13.dp))
                 }
             } else if (option.isDefault) {
                 Surface(shape = RoundedCornerShape(999.dp), color = Goldenrod.copy(alpha = 0.14f), modifier = Modifier.align(Alignment.TopEnd)) {

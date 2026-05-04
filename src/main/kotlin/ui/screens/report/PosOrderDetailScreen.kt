@@ -1,18 +1,54 @@
 package ui.screens.report
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Error
+import androidx.compose.material.icons.filled.LocalDrink
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Print
+import androidx.compose.material.icons.filled.Restaurant
+import androidx.compose.material.icons.filled.TableRestaurant
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import data.model.BeverageOrderItem
@@ -20,7 +56,12 @@ import data.model.FoodOrderItem
 import data.model.PosOrderDetailResponse
 import data.network.ReportApiService
 import kotlinx.coroutines.launch
-import ui.theme.ExtendedTypography
+import java.text.DecimalFormat
+
+private val Goldenrod = Color(0xFFD4AF37)
+private val PaidGreen = Color(0xFF16A34A)
+private val PaidGreenSoft = Color(0xFFEAF7ED)
+private val RefundRed = Color(0xFFDC2626)
 
 @Composable
 fun PosOrderDetailScreen(
@@ -29,7 +70,7 @@ fun PosOrderDetailScreen(
 ) {
     val api = remember { ReportApiService() }
     val scope = rememberCoroutineScope()
-    
+
     var orderDetail by remember { mutableStateOf<PosOrderDetailResponse?>(null) }
     var isLoading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
@@ -61,62 +102,25 @@ fun PosOrderDetailScreen(
                 .padding(paddingValues)
                 .fillMaxSize()
                 .background(
-                    brush = Brush.verticalGradient(
-                        colors = listOf(
+                    Brush.verticalGradient(
+                        listOf(
                             MaterialTheme.colorScheme.background,
-                            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+                            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.16f)
                         )
                     )
                 )
         ) {
             when {
-                isLoading -> {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            CircularProgressIndicator()
-                            Spacer(modifier = Modifier.height(16.dp))
-                            Text("Loading order details...", style = MaterialTheme.typography.bodyMedium)
-                        }
-                    }
-                }
-                errorMessage != null -> {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(
-                                Icons.Filled.Error,
-                                contentDescription = null,
-                                modifier = Modifier.size(64.dp),
-                                tint = MaterialTheme.colorScheme.error
-                            )
-                            Spacer(modifier = Modifier.height(16.dp))
-                            Text(
-                                errorMessage!!,
-                                style = MaterialTheme.typography.bodyLarge,
-                                color = MaterialTheme.colorScheme.error
-                            )
-                            Spacer(modifier = Modifier.height(16.dp))
-                            Button(onClick = onNavigateBack) {
-                                Text("Go Back")
-                            }
-                        }
-                    }
-                }
-                orderDetail != null -> {
-                    OrderDetailContent(orderDetail = orderDetail!!)
-                }
+                isLoading -> OrderDetailLoading()
+                errorMessage != null -> OrderDetailError(errorMessage = errorMessage.orEmpty(), onNavigateBack = onNavigateBack)
+                orderDetail != null -> OrderDetailContent(orderDetail = orderDetail!!)
             }
         }
     }
 }
 
 @Composable
-fun OrderDetailTopBar(
+private fun OrderDetailTopBar(
     orderId: String,
     onNavigateBack: () -> Unit
 ) {
@@ -126,506 +130,301 @@ fun OrderDetailTopBar(
         shadowElevation = 4.dp
     ) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 24.dp, vertical = 16.dp),
-            verticalAlignment = Alignment.CenterVertically
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            IconButton(onClick = onNavigateBack) {
-                Icon(
-                    Icons.Filled.ArrowBack,
-                    contentDescription = "Back",
-                    tint = MaterialTheme.colorScheme.primary
-                )
-            }
-            Spacer(modifier = Modifier.width(16.dp))
-            Column {
-                Text(
-                    "Order Details",
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                Text(
-                    "Order #${orderId.takeLast(8)}",
-                    style = ExtendedTypography.caption,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
-    }
-}
-
-@Composable
-fun OrderDetailContent(orderDetail: PosOrderDetailResponse) {
-    LazyColumn(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(24.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        // Order Info Card
-        item {
-            OrderInfoCard(orderDetail)
-        }
-        
-        // Food Orders Table
-        if (orderDetail.foodOrders.isNotEmpty()) {
-            item {
-                FoodOrdersTable(foodOrders = orderDetail.foodOrders)
-            }
-        }
-        
-        // Beverage Orders Table
-        if (orderDetail.beverageOrders.isNotEmpty()) {
-            item {
-                BeverageOrdersTable(beverageOrders = orderDetail.beverageOrders)
-            }
-        }
-        
-        // Total Amount Card
-        item {
-            TotalAmountCard(
-                totalAmount = orderDetail.totalAmount,
-                discount = orderDetail.discount,
-                discountType = orderDetail.discountType
-            )
-        }
-    }
-}
-
-@Composable
-fun OrderInfoCard(orderDetail: PosOrderDetailResponse) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(24.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                InfoItem(
-                    icon = Icons.Filled.Person,
-                    label = "Waiter",
-                    value = orderDetail.waiterName,
-                    color = MaterialTheme.colorScheme.primary
-                )
-                InfoItem(
-                    icon = Icons.Filled.TableRestaurant,
-                    label = "Table",
-                    value = "Table ${orderDetail.tableNumber}",
-                    color = MaterialTheme.colorScheme.secondary
-                )
-                InfoItem(
-                    icon = Icons.Filled.CheckCircle,
-                    label = "Status",
-                    value = orderDetail.orderStatus,
-                    color = Color(0xFF4CAF50)
-                )
-            }
-        }
-    }
-}
-
-@Composable
-fun InfoItem(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    label: String,
-    value: String,
-    color: Color
-) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        Surface(
-            shape = RoundedCornerShape(10.dp),
-            color = color.copy(alpha = 0.15f)
-        ) {
-            Icon(
-                icon,
-                contentDescription = null,
-                modifier = Modifier.padding(10.dp).size(24.dp),
-                tint = color
-            )
-        }
-        Column {
-            Text(
-                label,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Text(
-                value,
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-        }
-    }
-}
-
-@Composable
-fun FoodOrdersTable(foodOrders: List<FoodOrderItem>) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-    ) {
-        Column(modifier = Modifier.fillMaxWidth()) {
-            // Header
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.5f))
-                    .padding(20.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    Icons.Filled.Restaurant,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.tertiary,
-                    modifier = Modifier.size(24.dp)
-                )
-                Spacer(modifier = Modifier.width(12.dp))
-                Text(
-                    "Food Orders",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-            }
-            
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-            
-            // Table Header
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
-                    .padding(horizontal = 20.dp, vertical = 12.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    "Item",
-                    style = MaterialTheme.typography.labelLarge,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.weight(2f)
-                )
-                Text(
-                    "Size",
-                    style = MaterialTheme.typography.labelLarge,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.weight(1f)
-                )
-                Text(
-                    "Price",
-                    style = MaterialTheme.typography.labelLarge,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.weight(1f)
-                )
-                Text(
-                    "Qty",
-                    style = MaterialTheme.typography.labelLarge,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.weight(0.8f)
-                )
-                Text(
-                    "Subtotal",
-                    style = MaterialTheme.typography.labelLarge,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.weight(1.2f)
-                )
-            }
-            
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-            
-            // Table Rows
-            foodOrders.forEach { item ->
-                FoodOrderRow(item)
-                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-            }
-        }
-    }
-}
-
-@Composable
-fun FoodOrderRow(item: FoodOrderItem) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 20.dp, vertical = 16.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Column(modifier = Modifier.weight(2f)) {
-            Text(
-                item.foodName,
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = FontWeight.Medium
-            )
-            if (item.discount > 0) {
-                Text(
-                    "Discount: ${item.discount}${if (item.discountType == "PERCENTAGE") "%" else "৳"}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.error
-                )
-            }
-        }
-        
-        Text(
-            item.foodSize,
-            style = MaterialTheme.typography.bodySmall,
-            modifier = Modifier.weight(1f)
-        )
-        
-        Text(
-            "৳${String.format("%.2f", item.foodPrice)}",
-            style = MaterialTheme.typography.bodyMedium,
-            modifier = Modifier.weight(1f)
-        )
-        
-        Surface(
-            shape = RoundedCornerShape(6.dp),
-            color = MaterialTheme.colorScheme.primaryContainer,
-            modifier = Modifier.weight(0.8f)
-        ) {
-            Text(
-                "${item.foodQuantity}",
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                color = MaterialTheme.colorScheme.onPrimaryContainer
-            )
-        }
-        
-        Text(
-            "৳${String.format("%.2f", item.foodPrice * item.foodQuantity)}",
-            style = MaterialTheme.typography.bodyLarge,
-            fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.weight(1.2f)
-        )
-    }
-}
-
-@Composable
-fun BeverageOrdersTable(beverageOrders: List<BeverageOrderItem>) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-    ) {
-        Column(modifier = Modifier.fillMaxWidth()) {
-            // Header
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f))
-                    .padding(20.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    Icons.Filled.LocalDrink,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.secondary,
-                    modifier = Modifier.size(24.dp)
-                )
-                Spacer(modifier = Modifier.width(12.dp))
-                Text(
-                    "Beverage Orders",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-            }
-            
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-            
-            // Table Header
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
-                    .padding(horizontal = 20.dp, vertical = 12.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    "Item",
-                    style = MaterialTheme.typography.labelLarge,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.weight(2f)
-                )
-                Text(
-                    "Unit",
-                    style = MaterialTheme.typography.labelLarge,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.weight(1f)
-                )
-                Text(
-                    "Price",
-                    style = MaterialTheme.typography.labelLarge,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.weight(1f)
-                )
-                Text(
-                    "Qty",
-                    style = MaterialTheme.typography.labelLarge,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.weight(0.8f)
-                )
-                Text(
-                    "Subtotal",
-                    style = MaterialTheme.typography.labelLarge,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.weight(1.2f)
-                )
-            }
-            
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-            
-            // Table Rows
-            beverageOrders.forEach { item ->
-                BeverageOrderRow(item)
-                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-            }
-        }
-    }
-}
-
-@Composable
-fun BeverageOrderRow(item: BeverageOrderItem) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 20.dp, vertical = 16.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Column(modifier = Modifier.weight(2f)) {
-            Text(
-                item.beverageName,
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = FontWeight.Medium
-            )
-            if (item.discount > 0) {
-                Text(
-                    "Discount: ${item.discount}${if (item.discountType == "PERCENTAGE") "%" else "৳"}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.error
-                )
-            }
-        }
-        
-        Text(
-            item.unit,
-            style = MaterialTheme.typography.bodySmall,
-            modifier = Modifier.weight(1f)
-        )
-        
-        Text(
-            "৳${String.format("%.2f", item.price)}",
-            style = MaterialTheme.typography.bodyMedium,
-            modifier = Modifier.weight(1f)
-        )
-        
-        Surface(
-            shape = RoundedCornerShape(6.dp),
-            color = MaterialTheme.colorScheme.primaryContainer,
-            modifier = Modifier.weight(0.8f)
-        ) {
-            Text(
-                "${item.quantity}",
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                color = MaterialTheme.colorScheme.onPrimaryContainer
-            )
-        }
-        
-        Text(
-            "৳${String.format("%.2f", item.price * item.quantity * item.amount)}",
-            style = MaterialTheme.typography.bodyLarge,
-            fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.weight(1.2f)
-        )
-    }
-}
-
-@Composable
-fun TotalAmountCard(
-    totalAmount: Double,
-    discount: Double,
-    discountType: String
-) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.primaryContainer
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(24.dp)
-        ) {
-            if (discount > 0) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                IconButton(onClick = onNavigateBack) {
+                    Icon(Icons.Filled.ArrowBack, contentDescription = "Back", tint = Goldenrod)
+                }
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(
-                        "Discount",
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                        "Order Details",
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Black,
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                     Text(
-                        "${discount}${if (discountType == "PERCENTAGE") "%" else "৳"}",
-                        style = MaterialTheme.typography.bodyLarge,
-                        fontWeight = FontWeight.Medium,
-                        color = MaterialTheme.colorScheme.error
+                        "Order #$orderId",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-                Spacer(modifier = Modifier.height(12.dp))
-                HorizontalDivider(color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.2f))
-                Spacer(modifier = Modifier.height(12.dp))
             }
-            
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    "Total Amount",
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer
-                )
-                Text(
-                    "৳${String.format("%.2f", totalAmount)}",
-                    style = MaterialTheme.typography.headlineMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary
-                )
+
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                OutlinedButton(
+                    onClick = { },
+                    shape = RoundedCornerShape(12.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.35f))
+                ) {
+                    Icon(Icons.Filled.Print, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text("Print", fontWeight = FontWeight.SemiBold)
+                }
+                OutlinedButton(
+                    onClick = { },
+                    shape = RoundedCornerShape(12.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, RefundRed.copy(alpha = 0.45f)),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = RefundRed)
+                ) {
+                    Text("Refund", fontWeight = FontWeight.SemiBold)
+                }
             }
         }
     }
 }
+
+@Composable
+private fun OrderDetailContent(orderDetail: PosOrderDetailResponse) {
+    val df = remember { DecimalFormat("#,##0.00") }
+    LazyColumn(
+        modifier = Modifier.fillMaxSize().padding(horizontal = 24.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+        contentPadding = PaddingValues(top = 20.dp, bottom = 32.dp)
+    ) {
+        item { ReceiptMetaBar(orderDetail) }
+        item { OrderedItemsCard(orderDetail, df) }
+        item { FinancialSummary(orderDetail, df) }
+    }
+}
+
+@Composable
+private fun ReceiptMetaBar(orderDetail: PosOrderDetailResponse) {
+    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+        MetaInfoCard(
+            icon = Icons.Filled.Person,
+            label = "Waiter",
+            value = orderDetail.waiterName,
+            tint = Goldenrod,
+            modifier = Modifier.weight(1f)
+        )
+        MetaInfoCard(
+            icon = Icons.Filled.TableRestaurant,
+            label = "Table",
+            value = "Table ${orderDetail.tableNumber}",
+            tint = Color(0xFF8B7355),
+            modifier = Modifier.weight(1f)
+        )
+        MetaInfoCard(
+            icon = Icons.Filled.CheckCircle,
+            label = "Status",
+            value = buildStatusText(orderDetail),
+            tint = PaidGreen,
+            success = true,
+            modifier = Modifier.weight(1f)
+        )
+    }
+}
+
+@Composable
+private fun MetaInfoCard(
+    icon: ImageVector,
+    label: String,
+    value: String,
+    tint: Color,
+    modifier: Modifier = Modifier,
+    success: Boolean = false
+) {
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(18.dp),
+        color = if (success) PaidGreenSoft else MaterialTheme.colorScheme.surface,
+        shadowElevation = 1.dp,
+        border = androidx.compose.foundation.BorderStroke(1.dp, tint.copy(alpha = if (success) 0.20f else 0.12f))
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(18.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            Surface(shape = RoundedCornerShape(12.dp), color = tint.copy(alpha = 0.14f)) {
+                Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.padding(10.dp).size(24.dp))
+            }
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(value, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = if (success) Color(0xFF14532D) else MaterialTheme.colorScheme.onSurface)
+            }
+        }
+    }
+}
+
+@Composable
+private fun OrderedItemsCard(orderDetail: PosOrderDetailResponse, df: DecimalFormat) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(18.dp),
+        color = MaterialTheme.colorScheme.surface,
+        shadowElevation = 2.dp,
+        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.12f))
+    ) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 18.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text("ORDERED ITEMS", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black)
+                Text("${orderDetail.foodOrders.size + orderDetail.beverageOrders.size} items", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.14f))
+            ReceiptHeaderRow()
+
+            if (orderDetail.foodOrders.isNotEmpty()) {
+                ReceiptSectionHeader("🍽️ FOOD")
+                orderDetail.foodOrders.forEach { ReceiptFoodRow(it, df) }
+            }
+
+            if (orderDetail.beverageOrders.isNotEmpty()) {
+                ReceiptSectionHeader("🥤 BEVERAGES")
+                orderDetail.beverageOrders.forEach { ReceiptBeverageRow(it, df) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ReceiptHeaderRow() {
+    Row(
+        modifier = Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)).padding(horizontal = 20.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text("Item", modifier = Modifier.weight(2f), style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+        Text("Price", modifier = Modifier.weight(0.75f), style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+        Text("Qty", modifier = Modifier.weight(0.55f), style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+        Text("Subtotal", modifier = Modifier.weight(0.85f), style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+    }
+}
+
+@Composable
+private fun ReceiptSectionHeader(title: String) {
+    Text(
+        text = title,
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 13.dp),
+        style = MaterialTheme.typography.titleSmall,
+        fontWeight = FontWeight.Black,
+        color = Goldenrod
+    )
+    HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.08f))
+}
+
+@Composable
+private fun ReceiptFoodRow(item: FoodOrderItem, df: DecimalFormat) {
+    ReceiptLineRow(
+        name = item.foodName,
+        variant = "Size: ${item.foodSize}",
+        price = item.foodPrice,
+        qty = item.foodQuantity.toString(),
+        subtotal = item.foodPrice * item.foodQuantity,
+        df = df
+    )
+}
+
+@Composable
+private fun ReceiptBeverageRow(item: BeverageOrderItem, df: DecimalFormat) {
+    ReceiptLineRow(
+        name = item.beverageName,
+        variant = "Volume: ${formatCompact(item.quantity)} ${item.unit}",
+        price = item.price,
+        qty = item.amount.toString(),
+        subtotal = item.price * item.amount,
+        df = df
+    )
+}
+
+@Composable
+private fun ReceiptLineRow(
+    name: String,
+    variant: String,
+    price: Double,
+    qty: String,
+    subtotal: Double,
+    df: DecimalFormat
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(modifier = Modifier.weight(2f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            Text(name, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
+            Text(variant, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        Text("৳${df.format(price)}", modifier = Modifier.weight(0.75f), style = MaterialTheme.typography.bodyMedium)
+        Text(qty, modifier = Modifier.weight(0.55f), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
+        Text("৳${df.format(subtotal)}", modifier = Modifier.weight(0.85f), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold, color = Goldenrod)
+    }
+    HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.08f))
+}
+
+@Composable
+private fun FinancialSummary(orderDetail: PosOrderDetailResponse, df: DecimalFormat) {
+    val subtotal = remember(orderDetail) {
+        orderDetail.foodOrders.sumOf { it.foodPrice * it.foodQuantity } +
+            orderDetail.beverageOrders.sumOf { it.price * it.amount }
+    }
+    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+        Surface(
+            modifier = Modifier.width(440.dp),
+            shape = RoundedCornerShape(18.dp),
+            color = Color(0xFFFFF8E1),
+            border = androidx.compose.foundation.BorderStroke(1.dp, Goldenrod.copy(alpha = 0.18f)),
+            shadowElevation = 2.dp
+        ) {
+            Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("FINANCIAL SUMMARY", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black)
+                HorizontalDivider(color = Goldenrod.copy(alpha = 0.18f))
+                SummaryLine("Subtotal", "৳${df.format(subtotal)}")
+                SummaryLine(discountLabel(orderDetail), "৳${df.format(orderDetail.discount)}")
+                HorizontalDivider(color = Goldenrod.copy(alpha = 0.18f))
+                SummaryLine("TOTAL PAID", "৳${df.format(orderDetail.totalAmount)}", total = true)
+                SummaryLine("Payment Method", orderDetail.paymentMethod?.uppercase() ?: "N/A")
+            }
+        }
+    }
+}
+
+@Composable
+private fun SummaryLine(label: String, value: String, total: Boolean = false) {
+    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+        Text(label, style = if (total) MaterialTheme.typography.titleMedium else MaterialTheme.typography.bodyMedium, fontWeight = if (total) FontWeight.Black else FontWeight.Medium)
+        Text(value, style = if (total) MaterialTheme.typography.titleLarge else MaterialTheme.typography.bodyMedium, fontWeight = if (total) FontWeight.Black else FontWeight.SemiBold, color = if (total) Goldenrod else MaterialTheme.colorScheme.onSurface)
+    }
+}
+
+@Composable
+private fun OrderDetailLoading() {
+    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            CircularProgressIndicator(color = Goldenrod)
+            Spacer(modifier = Modifier.height(16.dp))
+            Text("Loading order details...", style = MaterialTheme.typography.bodyMedium)
+        }
+    }
+}
+
+@Composable
+private fun OrderDetailError(errorMessage: String, onNavigateBack: () -> Unit) {
+    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Icon(Icons.Filled.Error, contentDescription = null, modifier = Modifier.size(64.dp), tint = MaterialTheme.colorScheme.error)
+            Spacer(modifier = Modifier.height(16.dp))
+            Text(errorMessage, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.error)
+            Spacer(modifier = Modifier.height(16.dp))
+            Button(onClick = onNavigateBack) { Text("Go Back") }
+        }
+    }
+}
+
+private fun buildStatusText(orderDetail: PosOrderDetailResponse): String {
+    val status = orderDetail.orderStatus.uppercase()
+    val payment = orderDetail.paymentMethod?.uppercase()
+    return if (!payment.isNullOrBlank()) "$status ($payment)" else status
+}
+
+private fun discountLabel(orderDetail: PosOrderDetailResponse): String {
+    if (orderDetail.discount <= 0.0) return "Discount (0%)"
+    return if (orderDetail.discountType == "PERCENTAGE") "Discount (${formatCompact(orderDetail.discount)}%)" else "Discount"
+}
+
+private fun formatCompact(value: Double): String = if (value % 1.0 == 0.0) value.toInt().toString() else value.toString()

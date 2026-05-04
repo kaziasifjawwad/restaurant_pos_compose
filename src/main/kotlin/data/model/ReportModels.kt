@@ -2,7 +2,17 @@ package data.model
 
 import kotlinx.serialization.Serializable
 
-// ==================== Report Models ====================
+@Serializable
+data class PosReportDashboardResponse(
+    val orders: PosReportPage,
+    val totalOrders: Long = 0,
+    val totalSales: Double = 0.0,
+    val cashTotal: Double = 0.0,
+    val bkashTotal: Double = 0.0,
+    val cardTotal: Double = 0.0,
+    val rocketTotal: Double = 0.0,
+    val nagadTotal: Double = 0.0
+)
 
 @Serializable
 data class PosReportResponse(
@@ -11,6 +21,7 @@ data class PosReportResponse(
     val waiterId: String,
     val totalAmount: Double,
     val orderStatus: String,
+    val paymentMethod: String? = null,
     val tableId: String,
     val tableNumber: Int,
     val createdDateTime: String
@@ -19,7 +30,7 @@ data class PosReportResponse(
 @Serializable
 data class PosReportPage(
     val content: List<PosReportResponse>,
-    val pageable: Pageable,
+    val pageable: Pageable? = null,
     val totalPages: Int,
     val totalElements: Int,
     val last: Boolean,

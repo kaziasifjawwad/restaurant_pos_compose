@@ -89,6 +89,8 @@ import java.text.DecimalFormat
 
 private val Goldenrod = Color(0xFFD4AF37)
 private val Slate900 = Color(0xFF0F172A)
+private val SuccessGreen = Color(0xFF16A34A)
+private val SoftSuccess = Color(0xFFEAF7ED)
 
 @Composable
 fun PosOrderDetailScreen(
@@ -134,7 +136,9 @@ fun PosOrderDetailScreen(
                     viewModel.onEvent(PosUiEvent.ClearSelectedOrder)
                     onNavigateBack()
                 },
-                onEdit = { onNavigateToEdit(orderId) }
+                onEdit = { onNavigateToEdit(orderId) },
+                onPrint = { viewModel.onEvent(PosUiEvent.PrintBill(orderId)) },
+                onRefund = { viewModel.onEvent(PosUiEvent.ShowError("Refund flow is not available yet")) }
             )
 
             val closingAfterSuccess = uiState.successMessage != null && uiState.selectedOrder == null
@@ -180,7 +184,14 @@ fun PosOrderDetailScreen(
 }
 
 @Composable
-private fun CheckoutHeader(order: FoodOrderByCustomer?, onBack: () -> Unit, onEdit: () -> Unit) {
+private fun CheckoutHeader(
+    order: FoodOrderByCustomer?,
+    onBack: () -> Unit,
+    onEdit: () -> Unit,
+    onPrint: () -> Unit,
+    onRefund: () -> Unit
+) {
+    val isReadOnlyReceipt = order?.orderStatus == OrderStatus.PAID
     Surface(
         modifier = Modifier.fillMaxWidth(),
         color = MaterialTheme.colorScheme.surface,
@@ -193,31 +204,29 @@ private fun CheckoutHeader(order: FoodOrderByCustomer?, onBack: () -> Unit, onEd
         ) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                 IconButton(onClick = onBack) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = MaterialTheme.colorScheme.onSurface)
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = Goldenrod)
                 }
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Text(
-                            text = order?.let { "Order #${it.id}" } ?: "Loading order...",
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        if (order != null) TableBadge(order.tableNumber)
-                    }
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Text(
-                            text = order?.waiterName ?: "Waiter loading...",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        if (order != null) SoftStatusPill(order.orderStatus)
-                    }
+                Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                    Text(
+                        text = if (isReadOnlyReceipt) "Order Details" else order?.let { "Order #${it.id}" } ?: "Loading order...",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Black,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = order?.let { "Order #${it.id}" } ?: "Order loading...",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             }
 
-            if (order != null && order.orderStatus != OrderStatus.PAID && order.orderStatus != OrderStatus.CANCELED) {
-                BistroSecondaryButton(text = "Edit", icon = Icons.Outlined.Edit, onClick = onEdit)
+            when {
+                isReadOnlyReceipt -> Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                    BistroSecondaryButton(text = "Print", icon = Icons.Outlined.Print, onClick = onPrint)
+                    BistroDangerButton(text = "Refund", onClick = onRefund)
+                }
+                order != null && order.orderStatus != OrderStatus.CANCELED -> BistroSecondaryButton(text = "Edit", icon = Icons.Outlined.Edit, onClick = onEdit)
             }
         }
     }
@@ -245,7 +254,7 @@ private fun SoftStatusPill(status: OrderStatus) {
     val color = when (status) {
         OrderStatus.ORDER_PLACED -> Goldenrod
         OrderStatus.BILL_PRINTED -> Color(0xFF38BDF8)
-        OrderStatus.PAID -> Color(0xFF22C55E)
+        OrderStatus.PAID -> SuccessGreen
         OrderStatus.CANCELED -> Color(0xFFEF4444)
     }
 
@@ -272,6 +281,11 @@ private fun OrderDetailsCheckoutContent(
     viewModel: PosViewModel
 ) {
     val df = remember { DecimalFormat("#,##0.00") }
+    if (order.orderStatus == OrderStatus.PAID) {
+        DigitalReceiptContent(order = order, df = df)
+        return
+    }
+
     Row(
         modifier = Modifier.fillMaxSize().padding(20.dp),
         horizontalArrangement = Arrangement.spacedBy(20.dp)
@@ -284,6 +298,214 @@ private fun OrderDetailsCheckoutContent(
             viewModel = viewModel,
             modifier = Modifier.weight(0.40f).fillMaxHeight()
         )
+    }
+}
+
+@Composable
+private fun DigitalReceiptContent(order: FoodOrderByCustomer, df: DecimalFormat) {
+    LazyColumn(
+        modifier = Modifier.fillMaxSize().padding(horizontal = 24.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+        contentPadding = PaddingValues(top = 20.dp, bottom = 32.dp)
+    ) {
+        item { ReceiptMetaBar(order) }
+        item { ReceiptItemsCard(order, df) }
+        item { ReceiptFinancialSummary(order, df) }
+    }
+}
+
+@Composable
+private fun ReceiptMetaBar(order: FoodOrderByCustomer) {
+    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+        ReceiptInfoCard(
+            emoji = "👤",
+            label = "Waiter",
+            value = order.waiterName ?: "Unknown",
+            modifier = Modifier.weight(1f)
+        )
+        ReceiptInfoCard(
+            emoji = "🪑",
+            label = "Table",
+            value = "Table ${order.tableNumber}",
+            modifier = Modifier.weight(1f)
+        )
+        ReceiptInfoCard(
+            emoji = "✅",
+            label = "Status",
+            value = "PAID (${order.paymentMethod?.displayName ?: "N/A"})",
+            modifier = Modifier.weight(1f),
+            success = true
+        )
+    }
+}
+
+@Composable
+private fun ReceiptInfoCard(
+    emoji: String,
+    label: String,
+    value: String,
+    modifier: Modifier = Modifier,
+    success: Boolean = false
+) {
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(18.dp),
+        color = if (success) SoftSuccess else MaterialTheme.colorScheme.surface,
+        border = BorderStroke(1.dp, if (success) SuccessGreen.copy(alpha = 0.16f) else MaterialTheme.colorScheme.outline.copy(alpha = 0.10f)),
+        shadowElevation = 1.dp
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(18.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            Surface(shape = RoundedCornerShape(12.dp), color = if (success) SuccessGreen.copy(alpha = 0.14f) else Goldenrod.copy(alpha = 0.12f)) {
+                Text(emoji, modifier = Modifier.padding(10.dp), style = MaterialTheme.typography.titleMedium)
+            }
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(value, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = if (success) Color(0xFF14532D) else MaterialTheme.colorScheme.onSurface)
+            }
+        }
+    }
+}
+
+@Composable
+private fun ReceiptItemsCard(order: FoodOrderByCustomer, df: DecimalFormat) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(18.dp),
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.12f)),
+        shadowElevation = 2.dp
+    ) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 18.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Text("ORDERED ITEMS", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black)
+                Text("${order.foodOrders.size + order.beverageOrders.size} items", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.14f))
+            ReceiptHeaderRow()
+            if (order.foodOrders.isNotEmpty()) {
+                ReceiptSectionHeader("🍽️ FOOD")
+                order.foodOrders.forEach { food -> ReceiptFoodRow(food, df) }
+            }
+            if (order.beverageOrders.isNotEmpty()) {
+                ReceiptSectionHeader("🥤 BEVERAGES")
+                order.beverageOrders.forEach { beverage -> ReceiptBeverageRow(beverage, df) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ReceiptHeaderRow() {
+    Row(
+        modifier = Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)).padding(horizontal = 20.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text("Item", modifier = Modifier.weight(1.9f), style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+        Text("Price", modifier = Modifier.weight(0.75f), style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+        Text("Qty", modifier = Modifier.weight(0.55f), style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+        Text("Subtotal", modifier = Modifier.weight(0.85f), style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+    }
+}
+
+@Composable
+private fun ReceiptSectionHeader(title: String) {
+    Text(
+        text = title,
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 13.dp),
+        style = MaterialTheme.typography.titleSmall,
+        fontWeight = FontWeight.Black,
+        color = Goldenrod
+    )
+    HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.08f))
+}
+
+@Composable
+private fun ReceiptFoodRow(item: FoodOrder, df: DecimalFormat) {
+    ReceiptLineRow(
+        name = item.foodName ?: "Food #${item.itemNumber}",
+        variant = "Size: ${item.foodSize.name}",
+        price = item.foodPrice,
+        qty = item.foodQuantity.toString(),
+        subtotal = item.foodPrice * item.foodQuantity,
+        df = df
+    )
+}
+
+@Composable
+private fun ReceiptBeverageRow(item: BeverageOrder, df: DecimalFormat) {
+    ReceiptLineRow(
+        name = item.beverageName ?: "Beverage #${item.beverageId}",
+        variant = "Volume: ${df.format(item.quantity).trimTrailingZeros()} ${item.unit?.name ?: ""}",
+        price = item.price,
+        qty = item.amount.toString(),
+        subtotal = item.price * item.amount,
+        df = df
+    )
+}
+
+@Composable
+private fun ReceiptLineRow(
+    name: String,
+    variant: String,
+    price: Double,
+    qty: String,
+    subtotal: Double,
+    df: DecimalFormat
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(modifier = Modifier.weight(1.9f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            Text(name, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
+            Text(variant, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        Text("৳${df.format(price)}", modifier = Modifier.weight(0.75f), style = MaterialTheme.typography.bodyMedium)
+        Text(qty, modifier = Modifier.weight(0.55f), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
+        Text("৳${df.format(subtotal)}", modifier = Modifier.weight(0.85f), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold, color = Goldenrod)
+    }
+    HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.08f))
+}
+
+@Composable
+private fun ReceiptFinancialSummary(order: FoodOrderByCustomer, df: DecimalFormat) {
+    val lineSubtotal = remember(order) {
+        order.foodOrders.sumOf { it.foodPrice * it.foodQuantity } + order.beverageOrders.sumOf { it.price * it.amount }
+    }
+    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+        Surface(
+            modifier = Modifier.width(420.dp),
+            shape = RoundedCornerShape(18.dp),
+            color = Color(0xFFFFF8E1),
+            border = BorderStroke(1.dp, Goldenrod.copy(alpha = 0.18f)),
+            shadowElevation = 2.dp
+        ) {
+            Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("FINANCIAL SUMMARY", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black)
+                HorizontalDivider(color = Goldenrod.copy(alpha = 0.18f))
+                SummaryLine("Subtotal", "৳${df.format(lineSubtotal)}")
+                SummaryLine("Discount (0%)", "৳${df.format(order.discount)}")
+                HorizontalDivider(color = Goldenrod.copy(alpha = 0.18f))
+                SummaryLine("TOTAL PAID", "৳${df.format(order.totalAmount)}", total = true)
+                SummaryLine("Payment Method", order.paymentMethod?.displayName?.uppercase() ?: "N/A")
+            }
+        }
+    }
+}
+
+@Composable
+private fun SummaryLine(label: String, value: String, total: Boolean = false) {
+    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+        Text(label, style = if (total) MaterialTheme.typography.titleMedium else MaterialTheme.typography.bodyMedium, fontWeight = if (total) FontWeight.Black else FontWeight.Medium)
+        Text(value, style = if (total) MaterialTheme.typography.titleLarge else MaterialTheme.typography.bodyMedium, fontWeight = if (total) FontWeight.Black else FontWeight.SemiBold, color = if (total) Goldenrod else MaterialTheme.colorScheme.onSurface)
     }
 }
 
@@ -359,7 +581,7 @@ private fun BeverageItemCard(index: Int, item: BeverageOrder, df: DecimalFormat)
         index = index,
         icon = Icons.Outlined.LocalDrink,
         title = item.beverageName ?: "Beverage #${item.beverageId}",
-        meta = "${item.quantity} ${item.unit?.name.orEmpty()}",
+        meta = "${item.quantity.toString().trimTrailingZeros()} ${item.unit?.name.orEmpty()}",
         quantity = item.amount.toString(),
         unitPrice = item.price,
         lineTotal = item.price * item.amount,
@@ -727,6 +949,20 @@ private fun BistroSecondaryButton(text: String, icon: ImageVector, modifier: Mod
 }
 
 @Composable
+private fun BistroDangerButton(text: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    val danger = Color(0xFFDC2626)
+    OutlinedButton(
+        onClick = onClick,
+        modifier = modifier.height(46.dp),
+        shape = RoundedCornerShape(14.dp),
+        border = BorderStroke(1.dp, danger.copy(alpha = 0.40f)),
+        colors = ButtonDefaults.outlinedButtonColors(contentColor = danger)
+    ) {
+        Text(text, fontWeight = FontWeight.SemiBold)
+    }
+}
+
+@Composable
 private fun TextButtonLikeCancel(enabled: Boolean, onClick: () -> Unit) {
     val interactionSource = remember { MutableInteractionSource() }
     val isHovered by interactionSource.collectIsHoveredAsState()
@@ -812,3 +1048,5 @@ private fun PosToast(message: String, isError: Boolean, modifier: Modifier = Mod
 
 private fun String?.toPremiumSuccessMessage(): String =
     if (this.equals("Order completed successfully", ignoreCase = true)) "Order Completed Successfully" else this.orEmpty()
+
+private fun String.trimTrailingZeros(): String = removeSuffix(".00").removeSuffix(".0")

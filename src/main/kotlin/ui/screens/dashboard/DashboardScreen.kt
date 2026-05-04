@@ -47,7 +47,10 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.input.pointer.pointerMoveFilter
+import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.awaitPointerEventScope
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -63,7 +66,6 @@ import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
 import java.util.Locale
 import kotlinx.coroutines.launch
-import kotlin.math.PI
 import kotlin.math.atan2
 import kotlin.math.max
 import kotlin.math.sqrt
@@ -409,6 +411,7 @@ private fun PieChartCard(title: String, subtitle: String, slices: List<ChartSlic
     val validSlices = slices.filter { it.value > 0.0 }
     val total = validSlices.sumOf { it.value }.coerceAtLeast(1.0)
     var hoveredIndex by remember { mutableStateOf<Int?>(null) }
+    var pieSizePx by remember { mutableStateOf(0f) }
     val hoveredSlice = hoveredIndex?.let { validSlices.getOrNull(it) }
 
     DashboardCard {
@@ -417,16 +420,23 @@ private fun PieChartCard(title: String, subtitle: String, slices: List<ChartSlic
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.size(156.dp), contentAlignment = Alignment.Center) {
                 Canvas(
-                    Modifier.fillMaxSize().pointerMoveFilter(
-                        onMove = { position ->
-                            hoveredIndex = detectPieSlice(position, validSlices.map { it.value })
-                            true
-                        },
-                        onExit = {
-                            hoveredIndex = null
-                            true
+                    Modifier
+                        .fillMaxSize()
+                        .onSizeChanged { pieSizePx = it.width.toFloat() }
+                        .pointerInput(validSlices) {
+                            awaitPointerEventScope {
+                                while (true) {
+                                    val event = awaitPointerEvent()
+                                    hoveredIndex = if (event.type == PointerEventType.Exit) {
+                                        null
+                                    } else {
+                                        event.changes.firstOrNull()?.position?.let { position ->
+                                            detectPieSlice(position, validSlices.map { slice -> slice.value }, pieSizePx)
+                                        }
+                                    }
+                                }
+                            }
                         }
-                    )
                 ) {
                     val diameter = size.minDimension
                     var startAngle = -90f
@@ -678,12 +688,14 @@ private fun topFourPlusOthers(items: List<ChartSlice>): List<ChartSlice> {
     return if (others > 0.0) top + ChartSlice("Others", others) else top
 }
 
-private fun detectPieSlice(position: Offset, values: List<Double>): Int? {
+private fun detectPieSlice(position: Offset, values: List<Double>, canvasSize: Float): Int? {
     val total = values.sum().takeIf { it > 0.0 } ?: return null
-    val center = Offset(78f, 78f)
+    val radius = canvasSize / 2f
+    if (radius <= 0f) return null
+    val center = Offset(radius, radius)
     val dx = position.x - center.x
     val dy = position.y - center.y
-    if (sqrt(dx * dx + dy * dy) > 78f) return null
+    if (sqrt(dx * dx + dy * dy) > radius) return null
     var angle = Math.toDegrees(atan2(dy.toDouble(), dx.toDouble())) + 90.0
     if (angle < 0) angle += 360.0
     var start = 0.0

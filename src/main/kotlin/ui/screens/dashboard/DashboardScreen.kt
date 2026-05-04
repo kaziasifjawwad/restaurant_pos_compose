@@ -6,6 +6,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -52,7 +53,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import data.model.DashboardFullResponse
 import data.model.DashboardInsightResponse
-import data.model.DashboardPaymentDistributionItemResponse
 import data.model.DashboardPeakHourResponse
 import data.model.DashboardRecentActivityResponse
 import data.model.DashboardTimelineResponse
@@ -538,7 +538,7 @@ private fun TwoColumnRow(left: @Composable () -> Unit, right: @Composable () -> 
 }
 
 @Composable
-private fun DashboardCard(content: @Composable Column.() -> Unit) {
+private fun DashboardCard(content: @Composable ColumnScope.() -> Unit) {
     Card(
         shape = RoundedCornerShape(22.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -598,24 +598,3 @@ private data class BarItem(val label: String, val value: Double, val caption: St
 private fun taka(value: Double): String = "৳" + String.format("%,.2f", value)
 private fun compact(value: Double): String = if (value >= 1000.0) taka(value) else decimal(value)
 private fun decimal(value: Double): String = String.format("%,.2f", value)
-
-private class TimelineBucket(
-    private val label: String,
-    private val periodDate: LocalDate
-) {
-    var salesAmount: Double = 0.0
-    var orderCount: Long = 0
-
-    fun label(): String = label
-    fun periodDate(): LocalDate = periodDate
-
-    fun toResponse(): DashboardTimelineResponse = DashboardTimelineResponse(
-        label = label,
-        periodDate = periodDate.toString(),
-        periodStartDate = periodDate.toString(),
-        periodEndDate = periodDate.toString(),
-        salesAmount = salesAmount,
-        paidOrderCount = orderCount,
-        averageOrderValue = if (orderCount == 0L) 0.0 else salesAmount / orderCount
-    )
-}

@@ -28,6 +28,10 @@ dependencies {
     implementation("io.ktor:ktor-serialization-kotlinx-json:2.3.7")
     implementation("io.ktor:ktor-client-logging:2.3.7")
 
+    // SLF4J runtime binding for Ktor logging and other SLF4J users.
+    // Without this, desktop run prints: Failed to load class "org.slf4j.impl.StaticLoggerBinder".
+    runtimeOnly("org.slf4j:slf4j-simple:1.7.36")
+
     // JSON Serialization
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.2")
 

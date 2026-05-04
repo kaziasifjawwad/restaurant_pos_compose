@@ -10,7 +10,7 @@ enum class OrderStatus {
     BILL_PRINTED,
     PAID,
     CANCELED;
-    
+
     val displayName: String get() = when (this) {
         ORDER_PLACED -> "Order Placed"
         BILL_PRINTED -> "Bill Printed"
@@ -42,13 +42,27 @@ enum class PaymentMethod {
     }
 }
 
+@Serializable
+data class PaymentMethodResponse(
+    val id: Long,
+    val methodCode: PaymentMethod,
+    val displayName: String,
+    val defaultMethod: Boolean = false,
+    val active: Boolean = true
+)
+
+@Serializable
+data class PaymentMethodRequest(
+    val methodCode: PaymentMethod,
+    val displayName: String,
+    val defaultMethod: Boolean = false,
+    val active: Boolean = true
+)
+
 // Note: Use QuantityUnit from BeverageModels.kt for liquid units
 
 // ==================== Response Models ====================
 
-/**
- * Short info for order list display
- */
 @Serializable
 data class FoodOrderShortInfo(
     val id: Long,
@@ -62,9 +76,6 @@ data class FoodOrderShortInfo(
     val createdDateTime: String? = null
 )
 
-/**
- * Full order details
- */
 @Serializable
 data class FoodOrderByCustomer(
     val id: Long,
@@ -82,9 +93,6 @@ data class FoodOrderByCustomer(
     val createdDateTime: String? = null
 )
 
-/**
- * Food order line item (response)
- */
 @Serializable
 data class FoodOrder(
     val foodName: String? = null,
@@ -97,9 +105,6 @@ data class FoodOrder(
     val itemNumber: Short = 0
 )
 
-/**
- * Beverage order line item (response)
- */
 @Serializable
 data class BeverageOrder(
     val beverageName: String? = null,
@@ -114,10 +119,6 @@ data class BeverageOrder(
 
 // ==================== Request Models ====================
 
-/**
- * Request model for creating/updating orders.
- * Payment method is intentionally not part of create/update; it is selected only during paid completion.
- */
 @Serializable
 data class FoodOrderByCustomerRequest(
     val id: Long? = null,
@@ -131,10 +132,6 @@ data class FoodOrderByCustomerRequest(
     val tableId: Long
 )
 
-/**
- * Food order line item (request)
- * foodSize can be null so the backend automatically selects the food item's default price package.
- */
 @Serializable
 data class FoodOrderRequest(
     val itemNumber: Short,
@@ -144,9 +141,6 @@ data class FoodOrderRequest(
     val discountType: DiscountType = DiscountType.PERCENTAGE
 )
 
-/**
- * Beverage order line item (request)
- */
 @Serializable
 data class BeverageOrderRequest(
     val beverageId: Long,
@@ -159,9 +153,6 @@ data class BeverageOrderRequest(
 
 // ==================== Lookup Models ====================
 
-/**
- * Waiter info for dropdown
- */
 @Serializable
 data class WaiterInfo(
     val id: Long,
@@ -172,18 +163,12 @@ data class WaiterInfo(
     val displayName: String get() = fullName ?: "$firstName $lastName".trim().ifEmpty { "Waiter #$id" }
 }
 
-/**
- * Table info for dropdown
- */
 @Serializable
 data class TableInfo(
     val id: Long,
     val tableNumber: Int
 )
 
-/**
- * Page response for tables
- */
 @Serializable
 data class PageTableResponse(
     val totalPages: Int = 0,
@@ -197,9 +182,6 @@ data class PageTableResponse(
     val empty: Boolean = true
 )
 
-/**
- * Food item short info for order editor
- */
 @Serializable
 data class FoodItemShortInfo(
     val id: Long,
@@ -216,9 +198,6 @@ data class FoodPriceInfo(
     val isDefault: Boolean = false
 )
 
-/**
- * Page response for food items short info
- */
 @Serializable
 data class PageFoodItemShortInfoResponse(
     val totalPages: Int = 0,

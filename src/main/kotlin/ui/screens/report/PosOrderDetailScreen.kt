@@ -17,6 +17,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Cancel
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.Person
@@ -53,6 +54,7 @@ import java.text.DecimalFormat
 
 private val Goldenrod = Color(0xFFD4AF37)
 private val PaidGreen = Color(0xFF16A34A)
+private val CanceledRed = Color(0xFFDC2626)
 
 @Composable
 fun PosOrderDetailScreen(
@@ -148,6 +150,7 @@ private fun OrderDetailTopBar(
 @Composable
 private fun OrderDetailContent(orderDetail: PosOrderDetailResponse) {
     val df = remember { DecimalFormat("#,##0.00") }
+    val isCanceled = orderDetail.orderStatus.equals("CANCELED", ignoreCase = true)
     LazyColumn(
         modifier = Modifier.fillMaxSize().padding(horizontal = 24.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
@@ -155,12 +158,15 @@ private fun OrderDetailContent(orderDetail: PosOrderDetailResponse) {
     ) {
         item { ReceiptMetaBar(orderDetail) }
         item { OrderedItemsCard(orderDetail, df) }
-        item { FinancialSummary(orderDetail, df) }
+        if (!isCanceled) {
+            item { FinancialSummary(orderDetail, df) }
+        }
     }
 }
 
 @Composable
 private fun ReceiptMetaBar(orderDetail: PosOrderDetailResponse) {
+    val isCanceled = orderDetail.orderStatus.equals("CANCELED", ignoreCase = true)
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
         MetaInfoCard(
             icon = Icons.Filled.Person,
@@ -177,10 +183,10 @@ private fun ReceiptMetaBar(orderDetail: PosOrderDetailResponse) {
             modifier = Modifier.weight(1f)
         )
         MetaInfoCard(
-            icon = Icons.Filled.CheckCircle,
+            icon = if (isCanceled) Icons.Filled.Cancel else Icons.Filled.CheckCircle,
             label = "Status",
             value = buildStatusText(orderDetail),
-            tint = PaidGreen,
+            tint = if (isCanceled) CanceledRed else PaidGreen,
             modifier = Modifier.weight(1f)
         )
     }
@@ -401,7 +407,8 @@ private fun OrderDetailError(errorMessage: String, onNavigateBack: () -> Unit) {
 private fun buildStatusText(orderDetail: PosOrderDetailResponse): String {
     val status = orderDetail.orderStatus.uppercase()
     val payment = orderDetail.paymentMethod?.uppercase()
-    return if (!payment.isNullOrBlank()) "$status ($payment)" else status
+    val isCanceled = status == "CANCELED"
+    return if (!isCanceled && !payment.isNullOrBlank()) "$status ($payment)" else status
 }
 
 private fun discountLabel(orderDetail: PosOrderDetailResponse): String {

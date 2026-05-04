@@ -91,18 +91,24 @@ fun PosOrderEditorScreen(
         isContentVisible = true
     }
 
-    // Populate from loaded order when editing
-    LaunchedEffect(uiState.selectedOrder) {
+    // Populate from loaded order when editing. Keep default-package rows normalized as requestedFoodSize=null
+    // so adding the same default package later merges into the same visual row instead of creating a duplicate row.
+    LaunchedEffect(uiState.selectedOrder, uiState.foodItems) {
         uiState.selectedOrder?.let { order ->
             if (isEditMode) {
                 selectedWaiter = uiState.waiters.find { it.id == order.waiterId }
                 selectedTable = uiState.tables.find { it.id == order.tableId }
                 foodOrders = order.foodOrders.map { fo ->
+                    val lookupFoodItem = uiState.foodItems.find { it.itemNumber == fo.itemNumber }
+                    val defaultSize = lookupFoodItem?.defaultPrice?.foodSize
+                        ?: lookupFoodItem?.foodPrices?.firstOrNull { it.isDefault }?.foodSize
+                    val requestedSize = if (defaultSize == fo.foodSize) null else fo.foodSize
+
                     FoodOrderEntry(
                         itemNumber = fo.itemNumber,
                         foodName = fo.foodName ?: "Food #${fo.itemNumber}",
                         actualFoodSize = fo.foodSize,
-                        requestedFoodSize = fo.foodSize,
+                        requestedFoodSize = requestedSize,
                         quantity = fo.foodQuantity,
                         price = fo.foodPrice,
                         discount = fo.discount,
@@ -194,9 +200,24 @@ fun PosOrderEditorScreen(
 
         var updatedFoodOrders = foodOrders
         entriesToAdd.forEach { entry ->
-            updatedFoodOrders = updatedFoodOrders.filter {
-                !(it.itemNumber == entry.itemNumber && it.requestedFoodSize == entry.requestedFoodSize)
-            } + entry
+            val existingEntry = updatedFoodOrders.firstOrNull {
+                it.itemNumber == entry.itemNumber && it.actualFoodSize == entry.actualFoodSize
+            }
+
+            updatedFoodOrders = if (existingEntry == null) {
+                updatedFoodOrders + entry
+            } else {
+                updatedFoodOrders.map {
+                    if (it.itemNumber == entry.itemNumber && it.actualFoodSize == entry.actualFoodSize) {
+                        it.copy(
+                            quantity = it.quantity + entry.quantity,
+                            requestedFoodSize = entry.requestedFoodSize
+                        )
+                    } else {
+                        it
+                    }
+                }
+            }
         }
         foodOrders = updatedFoodOrders
 

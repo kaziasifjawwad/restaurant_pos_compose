@@ -67,8 +67,8 @@ import data.model.PosReportWaiterResponse
 import data.network.ReportApiService
 import java.io.File
 import java.time.LocalDate
-import java.time.OffsetDateTime
 import java.time.LocalTime
+import java.time.OffsetDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import javax.swing.JFileChooser
@@ -81,6 +81,16 @@ private val PosReportBkash = Color(0xFFE2136E)
 private val PosReportRocket = Color(0xFF7B1FA2)
 private val PosReportNagad = Color(0xFFF97316)
 private val PosReportCard = Color(0xFF38BDF8)
+
+private val PosReportTimeOptions = listOf(
+    "",
+    "00:00", "00:30", "01:00", "01:30", "02:00", "02:30", "03:00", "03:30",
+    "04:00", "04:30", "05:00", "05:30", "06:00", "06:30", "07:00", "07:30",
+    "08:00", "08:30", "09:00", "09:30", "10:00", "10:30", "11:00", "11:30",
+    "12:00", "12:30", "13:00", "13:30", "14:00", "14:30", "15:00", "15:30",
+    "16:00", "16:30", "17:00", "17:30", "18:00", "18:30", "19:00", "19:30",
+    "20:00", "20:30", "21:00", "21:30", "22:00", "22:30", "23:00", "23:30"
+)
 
 @Composable
 fun PosReportPaymentFilterScreen(
@@ -98,8 +108,10 @@ fun PosReportPaymentFilterScreen(
     var totalPages by remember { mutableStateOf(0) }
     var totalElements by remember { mutableStateOf(0) }
 
-    var dateFrom by remember { mutableStateOf("") }
-    var dateTo by remember { mutableStateOf("") }
+    var fromDate by remember { mutableStateOf("") }
+    var fromTime by remember { mutableStateOf("") }
+    var toDate by remember { mutableStateOf("") }
+    var toTime by remember { mutableStateOf("") }
     var waiterId by remember { mutableStateOf("") }
     var selectedStatus by remember { mutableStateOf("ALL") }
     var selectedPaymentMethod by remember { mutableStateOf("ALL") }
@@ -108,21 +120,49 @@ fun PosReportPaymentFilterScreen(
     var isDownloading by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }
 
+    fun buildRangeOrShowError(): Pair<String?, String?>? {
+        val from = posReportIsoBoundary(fromDate, fromTime, isStart = true)
+        val to = posReportIsoBoundary(toDate, toTime, isStart = false)
+
+        if (fromDate.isNotBlank() && from == null) {
+            message = "From date must be in yyyy-MM-dd format"
+            return null
+        }
+        if (toDate.isNotBlank() && to == null) {
+            message = "To date must be in yyyy-MM-dd format"
+            return null
+        }
+        if (fromDate.isBlank() && fromTime.isNotBlank()) {
+            message = "Select a from date before selecting from time"
+            return null
+        }
+        if (toDate.isBlank() && toTime.isNotBlank()) {
+            message = "Select a to date before selecting to time"
+            return null
+        }
+        if (from != null && to != null && OffsetDateTime.parse(to).isBefore(OffsetDateTime.parse(from))) {
+            message = "To date & time must not be before from date & time"
+            return null
+        }
+        return from to to
+    }
+
     fun loadReports(pageOverride: Int? = null) {
         scope.launch {
+            val range = buildRangeOrShowError() ?: return@launch
             val targetPage = pageOverride ?: currentPage
             isLoading = true
-            message = null
             try {
                 val response = api.getPosReports(
                     page = targetPage,
                     size = pageSize,
-                    dateFrom = posReportIsoStart(dateFrom),
-                    dateTo = posReportIsoEnd(dateTo),
+                    dateFrom = range.first,
+                    dateTo = range.second,
                     waiterId = waiterId.trim().ifBlank { null },
                     orderStatus = selectedStatus.takeIf { it != "ALL" },
                     paymentMethod = selectedPaymentMethod.takeIf { it != "ALL" }
                 )
+                message = null
                 dashboard = response
                 reports = response.orders.content
                 totalPages = response.orders.totalPages
@@ -149,8 +189,10 @@ fun PosReportPaymentFilterScreen(
     }
 
     fun resetFilters() {
-        dateFrom = ""
-        dateTo = ""
+        fromDate = ""
+        fromTime = ""
+        toDate = ""
+        toTime = ""
         waiterId = ""
         selectedStatus = "ALL"
         selectedPaymentMethod = "ALL"
@@ -160,8 +202,8 @@ fun PosReportPaymentFilterScreen(
 
     fun downloadPdf() {
         scope.launch {
+            val range = buildRangeOrShowError() ?: return@launch
             isDownloading = true
-            message = null
             try {
                 val fileChooser = JFileChooser()
                 fileChooser.dialogTitle = "Save POS Report PDF"
@@ -171,7 +213,7 @@ fun PosReportPaymentFilterScreen(
                 if (result == JFileChooser.APPROVE_OPTION) {
                     var file = fileChooser.selectedFile
                     if (!file.name.endsWith(".pdf")) file = File(file.absolutePath + ".pdf")
-                    val success = api.downloadPosReportPdf(posReportIsoStart(dateFrom), posReportIsoEnd(dateTo), file)
+                    val success = api.downloadPosReportPdf(range.first, range.second, file)
                     message = if (success) "PDF saved successfully to ${file.name}" else "Failed to download PDF"
                 }
             } catch (e: Exception) {
@@ -196,10 +238,14 @@ fun PosReportPaymentFilterScreen(
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             PosReportFilterPanel(
-                dateFrom = dateFrom,
-                onDateFromChange = { dateFrom = it },
-                dateTo = dateTo,
-                onDateToChange = { dateTo = it },
+                fromDate = fromDate,
+                onFromDateChange = { fromDate = it },
+                fromTime = fromTime,
+                onFromTimeChange = { fromTime = it },
+                toDate = toDate,
+                onToDateChange = { toDate = it },
+                toTime = toTime,
+                onToTimeChange = { toTime = it },
                 waiterId = waiterId,
                 onWaiterIdChange = { waiterId = it },
                 waiters = waiters,
@@ -271,7 +317,7 @@ private fun PosReportHeader(
                 }
                 Column {
                     Text("POS Reports", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Black)
-                    Text("Filter transactions by payment method", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("Filter transactions by date, time and payment method", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -297,10 +343,14 @@ private fun PosReportHeader(
 
 @Composable
 private fun PosReportFilterPanel(
-    dateFrom: String,
-    onDateFromChange: (String) -> Unit,
-    dateTo: String,
-    onDateToChange: (String) -> Unit,
+    fromDate: String,
+    onFromDateChange: (String) -> Unit,
+    fromTime: String,
+    onFromTimeChange: (String) -> Unit,
+    toDate: String,
+    onToDateChange: (String) -> Unit,
+    toTime: String,
+    onToTimeChange: (String) -> Unit,
     waiterId: String,
     onWaiterIdChange: (String) -> Unit,
     waiters: List<PosReportWaiterResponse>,
@@ -324,11 +374,27 @@ private fun PosReportFilterPanel(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text("FILTER", modifier = Modifier.width(54.dp), fontWeight = FontWeight.Black, color = PosReportGold)
-            PosReportTextField(dateFrom, onDateFromChange, "From yyyy-MM-dd", Modifier.weight(1f))
-            PosReportTextField(dateTo, onDateToChange, "To yyyy-MM-dd", Modifier.weight(1f))
-            PosReportWaiterFilter(waiterId, onWaiterIdChange, waiters, Modifier.weight(1.25f))
-            PosReportStatusFilter(selectedStatus, onStatusChange, Modifier.weight(0.95f))
-            PosReportPaymentMethodFilter(selectedPaymentMethod, onPaymentMethodChange, Modifier.weight(1.1f))
+            PosReportDateTimePicker(
+                title = "From",
+                date = fromDate,
+                onDateChange = onFromDateChange,
+                time = fromTime,
+                onTimeChange = onFromTimeChange,
+                timeHint = "Start of day",
+                modifier = Modifier.weight(1.35f)
+            )
+            PosReportDateTimePicker(
+                title = "To",
+                date = toDate,
+                onDateChange = onToDateChange,
+                time = toTime,
+                onTimeChange = onToTimeChange,
+                timeHint = "End of day",
+                modifier = Modifier.weight(1.35f)
+            )
+            PosReportWaiterFilter(waiterId, onWaiterIdChange, waiters, Modifier.weight(1.15f))
+            PosReportStatusFilter(selectedStatus, onStatusChange, Modifier.weight(0.85f))
+            PosReportPaymentMethodFilter(selectedPaymentMethod, onPaymentMethodChange, Modifier.weight(1f))
             OutlinedButton(onClick = onReset, modifier = Modifier.height(44.dp), contentPadding = PaddingValues(horizontal = 14.dp)) {
                 Text("Reset")
             }
@@ -345,15 +411,31 @@ private fun PosReportFilterPanel(
 }
 
 @Composable
-private fun PosReportTextField(value: String, onValueChange: (String) -> Unit, placeholder: String, modifier: Modifier) {
-    OutlinedTextField(
-        value = value,
-        onValueChange = onValueChange,
-        placeholder = { Text(placeholder) },
-        modifier = modifier.height(44.dp),
-        singleLine = true,
-        textStyle = MaterialTheme.typography.bodySmall
-    )
+private fun PosReportDateTimePicker(
+    title: String,
+    date: String,
+    onDateChange: (String) -> Unit,
+    time: String,
+    onTimeChange: (String) -> Unit,
+    timeHint: String,
+    modifier: Modifier
+) {
+    Row(modifier = modifier, horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+        OutlinedTextField(
+            value = date,
+            onValueChange = onDateChange,
+            placeholder = { Text("$title date") },
+            modifier = Modifier.weight(1.05f).height(44.dp),
+            singleLine = true,
+            textStyle = MaterialTheme.typography.bodySmall
+        )
+        PosReportDropdown(
+            value = time.ifBlank { timeHint },
+            options = PosReportTimeOptions.map { it to if (it.isBlank()) timeHint else it },
+            onSelect = onTimeChange,
+            modifier = Modifier.weight(0.95f)
+        )
+    }
 }
 
 @Composable
@@ -583,13 +665,16 @@ private fun PosReportPageSizeSelector(pageSize: Int, onPageSizeChange: (Int) -> 
     )
 }
 
-private fun posReportIsoStart(value: String): String? = posReportIso(value, LocalTime.MIN)
-private fun posReportIsoEnd(value: String): String? = posReportIso(value, LocalTime.MAX)
-
-private fun posReportIso(value: String, time: LocalTime): String? {
-    if (value.isBlank()) return null
+private fun posReportIsoBoundary(dateValue: String, timeValue: String, isStart: Boolean): String? {
+    if (dateValue.isBlank()) return null
     return runCatching {
-        OffsetDateTime.of(LocalDate.parse(value.trim()), time, ZoneId.systemDefault().rules.getOffset(java.time.Instant.now()))
+        val date = LocalDate.parse(dateValue.trim())
+        val time = if (timeValue.isBlank()) {
+            if (isStart) LocalTime.MIN else LocalTime.MAX
+        } else {
+            LocalTime.parse(timeValue.trim())
+        }
+        OffsetDateTime.of(date, time, ZoneId.systemDefault().rules.getOffset(java.time.Instant.now()))
             .format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)
     }.getOrNull()
 }

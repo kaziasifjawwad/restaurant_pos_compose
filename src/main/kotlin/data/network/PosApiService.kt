@@ -22,12 +22,6 @@ class PosApiService(
         private const val TAG = "PosApiService"
     }
 
-    // ==================== Order List ====================
-
-    /**
-     * Get all active orders
-     * GET /pos
-     */
     suspend fun getActiveOrders(): Result<List<FoodOrderShortInfo>> {
         println("[$TAG] getActiveOrders")
         return executeRequest {
@@ -40,12 +34,6 @@ class PosApiService(
         }
     }
 
-    // ==================== Single Order ====================
-
-    /**
-     * Get order by ID
-     * GET /pos/{id}
-     */
     suspend fun getOrderById(id: Long): Result<FoodOrderByCustomer> {
         println("[$TAG] getOrderById: id=$id")
         return executeRequest {
@@ -58,12 +46,6 @@ class PosApiService(
         }
     }
 
-    // ==================== Create/Update ====================
-
-    /**
-     * Create a new order. Payment method is not sent here; it is selected only during paid completion.
-     * POST /pos
-     */
     suspend fun createOrder(request: FoodOrderByCustomerRequest): Result<FoodOrderShortInfo> {
         println("[$TAG] createOrder: tableId=${request.tableId}, waiterId=${request.waiterId}")
         return executeRequest {
@@ -78,10 +60,6 @@ class PosApiService(
         }
     }
 
-    /**
-     * Update an existing order. Payment method is not sent here; it is selected only during paid completion.
-     * PUT /pos/{id}
-     */
     suspend fun updateOrder(id: Long, request: FoodOrderByCustomerRequest): Result<FoodOrderShortInfo> {
         println("[$TAG] updateOrder: id=$id, tableId=${request.tableId}, waiterId=${request.waiterId}")
         return executeRequest {
@@ -96,12 +74,6 @@ class PosApiService(
         }
     }
 
-    // ==================== Status Changes ====================
-
-    /**
-     * Set order status to ORDER_PLACED or BILL_PRINTED
-     * PUT /pos/placed-or-bill-printed/{id}?orderStatus=...
-     */
     suspend fun setPlacedOrBillPrinted(id: Long, status: OrderStatus): Result<FoodOrderByCustomer> {
         require(status == OrderStatus.ORDER_PLACED || status == OrderStatus.BILL_PRINTED) {
             "Invalid status for placed-or-bill-printed: $status"
@@ -112,19 +84,12 @@ class PosApiService(
             val response: HttpResponse = client.put("$baseUrl/pos/placed-or-bill-printed/$id") {
                 header(HttpHeaders.Authorization, "Bearer $token")
                 accept(ContentType.Application.Json)
-                url {
-                    parameters.append("orderStatus", status.name)
-                }
+                url { parameters.append("orderStatus", status.name) }
             }
             handleResponse<FoodOrderByCustomer>(response, "Failed to update order status")
         }
     }
 
-    /**
-     * Set order status to PAID or CANCELED.
-     * Payment method is sent only for PAID; cancel never sends payment method.
-     * PUT /pos/paid-or-cancel/{id}?orderStatus=...&paymentMethod=...
-     */
     suspend fun setPaidOrCancel(
         id: Long,
         status: OrderStatus,
@@ -150,13 +115,7 @@ class PosApiService(
         }
     }
 
-    // ==================== Lookup Endpoints ====================
-
-    /**
-     * Get allowed payment methods from backend.
-     * GET /pos/payment-methods
-     */
-    suspend fun getPaymentMethods(): Result<List<PaymentMethod>> {
+    suspend fun getPaymentMethods(): Result<List<PaymentMethodResponse>> {
         println("[$TAG] getPaymentMethods")
         return executeRequest {
             val token = requireToken()
@@ -164,14 +123,77 @@ class PosApiService(
                 header(HttpHeaders.Authorization, "Bearer $token")
                 accept(ContentType.Application.Json)
             }
-            handleResponse<List<PaymentMethod>>(response, "Failed to load payment methods")
+            handleResponse<List<PaymentMethodResponse>>(response, "Failed to load payment methods")
         }
     }
 
-    /**
-     * Get all waiters
-     * GET /user-info/waiter
-     */
+    suspend fun getAllPaymentMethods(): Result<List<PaymentMethodResponse>> {
+        println("[$TAG] getAllPaymentMethods")
+        return executeRequest {
+            val token = requireToken()
+            val response: HttpResponse = client.get("$baseUrl/pos/payment-methods/all") {
+                header(HttpHeaders.Authorization, "Bearer $token")
+                accept(ContentType.Application.Json)
+            }
+            handleResponse<List<PaymentMethodResponse>>(response, "Failed to load payment methods")
+        }
+    }
+
+    suspend fun createPaymentMethod(request: PaymentMethodRequest): Result<PaymentMethodResponse> {
+        println("[$TAG] createPaymentMethod: methodCode=${request.methodCode}")
+        return executeRequest {
+            val token = requireToken()
+            val response: HttpResponse = client.post("$baseUrl/pos/payment-methods") {
+                header(HttpHeaders.Authorization, "Bearer $token")
+                contentType(ContentType.Application.Json)
+                accept(ContentType.Application.Json)
+                setBody(request)
+            }
+            handleResponse<PaymentMethodResponse>(response, "Failed to create payment method")
+        }
+    }
+
+    suspend fun updatePaymentMethod(id: Long, request: PaymentMethodRequest): Result<PaymentMethodResponse> {
+        println("[$TAG] updatePaymentMethod: id=$id, methodCode=${request.methodCode}")
+        return executeRequest {
+            val token = requireToken()
+            val response: HttpResponse = client.put("$baseUrl/pos/payment-methods/$id") {
+                header(HttpHeaders.Authorization, "Bearer $token")
+                contentType(ContentType.Application.Json)
+                accept(ContentType.Application.Json)
+                setBody(request)
+            }
+            handleResponse<PaymentMethodResponse>(response, "Failed to update payment method")
+        }
+    }
+
+    suspend fun setDefaultPaymentMethod(id: Long): Result<PaymentMethodResponse> {
+        println("[$TAG] setDefaultPaymentMethod: id=$id")
+        return executeRequest {
+            val token = requireToken()
+            val response: HttpResponse = client.put("$baseUrl/pos/payment-methods/$id/default") {
+                header(HttpHeaders.Authorization, "Bearer $token")
+                accept(ContentType.Application.Json)
+            }
+            handleResponse<PaymentMethodResponse>(response, "Failed to set default payment method")
+        }
+    }
+
+    suspend fun deletePaymentMethod(id: Long): Result<Unit> {
+        println("[$TAG] deletePaymentMethod: id=$id")
+        return executeRequest {
+            val token = requireToken()
+            val response: HttpResponse = client.delete("$baseUrl/pos/payment-methods/$id") {
+                header(HttpHeaders.Authorization, "Bearer $token")
+                accept(ContentType.Application.Json)
+            }
+            when (response.status) {
+                HttpStatusCode.OK, HttpStatusCode.NoContent -> Unit
+                else -> throw Exception("Failed to delete payment method: ${tryParseError(response)}")
+            }
+        }
+    }
+
     suspend fun getWaiters(): Result<List<WaiterInfo>> {
         println("[$TAG] getWaiters")
         return executeRequest {
@@ -184,10 +206,6 @@ class PosApiService(
         }
     }
 
-    /**
-     * Get all tables (unpaged)
-     * GET /table?unpaged=true
-     */
     suspend fun getTables(): Result<List<TableInfo>> {
         println("[$TAG] getTables")
         return executeRequest {
@@ -195,19 +213,13 @@ class PosApiService(
             val response: HttpResponse = client.get("$baseUrl/table") {
                 header(HttpHeaders.Authorization, "Bearer $token")
                 accept(ContentType.Application.Json)
-                url {
-                    parameters.append("unpaged", "true")
-                }
+                url { parameters.append("unpaged", "true") }
             }
             val pageResponse = handleResponse<PageTableResponse>(response, "Failed to load tables")
             pageResponse.content
         }
     }
 
-    /**
-     * Get food items for order editor
-     * GET /food/item?unpaged=true
-     */
     suspend fun getFoodItemsShortInfo(): Result<List<FoodItemShortInfo>> {
         println("[$TAG] getFoodItemsShortInfo")
         return executeRequest {
@@ -215,9 +227,7 @@ class PosApiService(
             val response: HttpResponse = client.get("$baseUrl/food/item") {
                 header(HttpHeaders.Authorization, "Bearer $token")
                 accept(ContentType.Application.Json)
-                url {
-                    parameters.append("unpaged", "true")
-                }
+                url { parameters.append("unpaged", "true") }
             }
             val pageResponse = handleResponse<PageFoodItemResponse>(response, "Failed to load food items")
             pageResponse.content.map { item ->
@@ -245,10 +255,6 @@ class PosApiService(
         }
     }
 
-    /**
-     * Get beverages for order editor
-     * GET /food/beverage?unpaged=true
-     */
     suspend fun getBeverages(): Result<List<BeverageResponse>> {
         println("[$TAG] getBeverages")
         return executeRequest {
@@ -256,16 +262,12 @@ class PosApiService(
             val response: HttpResponse = client.get("$baseUrl/food/beverage") {
                 header(HttpHeaders.Authorization, "Bearer $token")
                 accept(ContentType.Application.Json)
-                url {
-                    parameters.append("unpaged", "true")
-                }
+                url { parameters.append("unpaged", "true") }
             }
             val pageResponse = handleResponse<PageBeverageResponse>(response, "Failed to load beverages")
             pageResponse.content
         }
     }
-
-    // ==================== Helper Methods ====================
 
     private fun requireToken(): String {
         return AuthManager.getToken() ?: throw Exception("Not authenticated")
@@ -280,13 +282,9 @@ class PosApiService(
         }
     }
 
-    private suspend inline fun <reified T> handleResponse(
-        response: HttpResponse,
-        errorPrefix: String
-    ): T {
+    private suspend inline fun <reified T> handleResponse(response: HttpResponse, errorPrefix: String): T {
         println("[$TAG] Response status: ${response.status}")
         println("[$TAG] Response Content-Type: ${response.contentType()}")
-        
         return when (response.status) {
             HttpStatusCode.OK, HttpStatusCode.Created -> {
                 try {
@@ -314,21 +312,10 @@ class PosApiService(
                 AuthManager.clearToken()
                 throw Exception("Session expired. Please login again.")
             }
-            HttpStatusCode.BadRequest -> {
-                val error = tryParseError(response)
-                throw Exception("$errorPrefix: $error")
-            }
-            HttpStatusCode.NotFound -> {
-                throw Exception("$errorPrefix: Not found")
-            }
-            HttpStatusCode.Conflict -> {
-                val error = tryParseError(response)
-                throw Exception("$errorPrefix: $error")
-            }
-            else -> {
-                val error = tryParseError(response)
-                throw Exception("$errorPrefix: ${response.status} - $error")
-            }
+            HttpStatusCode.BadRequest -> throw Exception("$errorPrefix: ${tryParseError(response)}")
+            HttpStatusCode.NotFound -> throw Exception("$errorPrefix: Not found")
+            HttpStatusCode.Conflict -> throw Exception("$errorPrefix: ${tryParseError(response)}")
+            else -> throw Exception("$errorPrefix: ${response.status} - ${tryParseError(response)}")
         }
     }
 

@@ -48,8 +48,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.PointerEventType
-import androidx.compose.ui.input.pointer.awaitPointerEventScope
-import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.onPointerEvent
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -117,16 +116,8 @@ fun DashboardScreen() {
                     dateTo = dateTo,
                     onDateFrom = { dateFrom = it },
                     onDateTo = { dateTo = it },
-                    onToday = {
-                        dateFrom = today
-                        dateTo = today
-                        load()
-                    },
-                    onThisWeek = {
-                        dateFrom = today.minusDays(6)
-                        dateTo = today
-                        load()
-                    },
+                    onToday = { dateFrom = today; dateTo = today; load() },
+                    onThisWeek = { dateFrom = today.minusDays(6); dateTo = today; load() },
                     onThisMonth = {
                         dateFrom = today.withDayOfMonth(1)
                         dateTo = today.withDayOfMonth(today.lengthOfMonth())
@@ -202,12 +193,7 @@ fun DashboardScreen() {
                         )
                     }
                     item { PeakHourCard(data.peakHours) }
-                    item {
-                        TwoColumnRow(
-                            left = { InsightCard(data.insights) },
-                            right = { LowStockCard(data) }
-                        )
-                    }
+                    item { TwoColumnRow(left = { InsightCard(data.insights) }, right = { LowStockCard(data) }) }
                     item { RecentActivityCard(data.recentActivity) }
                 }
             }
@@ -216,12 +202,7 @@ fun DashboardScreen() {
 }
 
 @Composable
-private fun DashboardTopBar(
-    dateFrom: LocalDate,
-    dateTo: LocalDate,
-    loading: Boolean,
-    onRefresh: () -> Unit
-) {
+private fun DashboardTopBar(dateFrom: LocalDate, dateTo: LocalDate, loading: Boolean, onRefresh: () -> Unit) {
     Surface(modifier = Modifier.fillMaxWidth(), shadowElevation = 3.dp) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 10.dp),
@@ -263,11 +244,7 @@ private fun DashboardFilters(
     onApply: () -> Unit
 ) {
     DashboardCard {
-        Row(
-            Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
             CalendarDateButton("Date From", dateFrom, onDateFrom, Modifier.weight(1f))
             CalendarDateButton("Date To", dateTo, onDateTo, Modifier.weight(1f))
             Button(onClick = onApply) { Text("Apply") }
@@ -283,12 +260,7 @@ private fun DashboardFilters(
 }
 
 @Composable
-private fun CalendarDateButton(
-    label: String,
-    selectedDate: LocalDate,
-    onSelected: (LocalDate) -> Unit,
-    modifier: Modifier = Modifier
-) {
+private fun CalendarDateButton(label: String, selectedDate: LocalDate, onSelected: (LocalDate) -> Unit, modifier: Modifier = Modifier) {
     var expanded by remember { mutableStateOf(false) }
     var visibleMonth by remember(selectedDate) { mutableStateOf(YearMonth.from(selectedDate)) }
 
@@ -305,10 +277,7 @@ private fun CalendarDateButton(
                 selectedDate = selectedDate,
                 onPreviousMonth = { visibleMonth = visibleMonth.minusMonths(1) },
                 onNextMonth = { visibleMonth = visibleMonth.plusMonths(1) },
-                onDateSelected = {
-                    onSelected(it)
-                    expanded = false
-                }
+                onDateSelected = { onSelected(it); expanded = false }
             )
         }
     }
@@ -325,10 +294,7 @@ private fun CalendarView(
     Column(Modifier.width(310.dp).padding(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             TextButton(onClick = onPreviousMonth) { Text("‹") }
-            Text(
-                "${month.month.getDisplayName(TextStyle.FULL, Locale.getDefault())} ${month.year}",
-                fontWeight = FontWeight.Black
-            )
+            Text("${month.month.getDisplayName(TextStyle.FULL, Locale.getDefault())} ${month.year}", fontWeight = FontWeight.Black)
             TextButton(onClick = onNextMonth) { Text("›") }
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -337,9 +303,7 @@ private fun CalendarView(
             }
         }
         val firstDay = month.atDay(1)
-        val daysInMonth = month.lengthOfMonth()
-        val leadingBlank = firstDay.dayOfWeek.value - 1
-        val cells = List(leadingBlank) { null } + (1..daysInMonth).map { month.atDay(it) }
+        val cells = List(firstDay.dayOfWeek.value - 1) { null } + (1..month.lengthOfMonth()).map { month.atDay(it) }
         cells.chunked(7).forEach { week ->
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 week.forEach { date ->
@@ -423,20 +387,12 @@ private fun PieChartCard(title: String, subtitle: String, slices: List<ChartSlic
                     Modifier
                         .fillMaxSize()
                         .onSizeChanged { pieSizePx = it.width.toFloat() }
-                        .pointerInput(validSlices) {
-                            awaitPointerEventScope {
-                                while (true) {
-                                    val event = awaitPointerEvent()
-                                    hoveredIndex = if (event.type == PointerEventType.Exit) {
-                                        null
-                                    } else {
-                                        event.changes.firstOrNull()?.position?.let { position ->
-                                            detectPieSlice(position, validSlices.map { slice -> slice.value }, pieSizePx)
-                                        }
-                                    }
-                                }
+                        .onPointerEvent(PointerEventType.Move) { event ->
+                            hoveredIndex = event.changes.firstOrNull()?.position?.let { position ->
+                                detectPieSlice(position, validSlices.map { slice -> slice.value }, pieSizePx)
                             }
                         }
+                        .onPointerEvent(PointerEventType.Exit) { hoveredIndex = null }
                 ) {
                     val diameter = size.minDimension
                     var startAngle = -90f
@@ -468,10 +424,7 @@ private fun PieChartCard(title: String, subtitle: String, slices: List<ChartSlic
                     }
                 }
                 if (hoveredSlice != null) {
-                    Surface(
-                        shape = RoundedCornerShape(10.dp),
-                        color = MaterialTheme.colorScheme.inverseSurface.copy(alpha = 0.92f)
-                    ) {
+                    Surface(shape = RoundedCornerShape(10.dp), color = MaterialTheme.colorScheme.inverseSurface.copy(alpha = 0.92f)) {
                         Column(Modifier.padding(8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                             Text(hoveredSlice.label, color = MaterialTheme.colorScheme.inverseOnSurface, fontWeight = FontWeight.Bold, maxLines = 1)
                             Text("${compact(hoveredSlice.value)} • ${decimal(hoveredSlice.value / total * 100)}%", color = MaterialTheme.colorScheme.inverseOnSurface)
@@ -529,9 +482,7 @@ private fun InsightCard(items: List<DashboardInsightResponse>) {
         SectionHeader("Insights", "Actionable warnings")
         Spacer(Modifier.height(6.dp))
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            if (items.isEmpty()) {
-                Text("No critical insight for this range", color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
+            if (items.isEmpty()) Text("No critical insight for this range", color = MaterialTheme.colorScheme.onSurfaceVariant)
             items.forEach { insight ->
                 Surface(shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.60f)) {
                     Column(Modifier.fillMaxWidth().padding(10.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
@@ -551,9 +502,7 @@ private fun LowStockCard(data: DashboardFullResponse) {
         SectionHeader("Low Stock", "Inventory attention")
         Spacer(Modifier.height(6.dp))
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            if (data.lowStockSummary.items.isEmpty()) {
-                Text("No low-stock ingredients", color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
+            if (data.lowStockSummary.items.isEmpty()) Text("No low-stock ingredients", color = MaterialTheme.colorScheme.onSurfaceVariant)
             data.lowStockSummary.items.take(8).forEach { item ->
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
@@ -573,20 +522,10 @@ private fun RecentActivityCard(items: List<DashboardRecentActivityResponse>) {
         SectionHeader("Recent Activity", "Latest POS movement")
         Spacer(Modifier.height(6.dp))
         Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
-            if (items.isEmpty()) {
-                Text("No recent activity", color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
+            if (items.isEmpty()) Text("No recent activity", color = MaterialTheme.colorScheme.onSurfaceVariant)
             items.take(10).forEach { activity ->
-                Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(14.dp),
-                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.48f)
-                ) {
-                    Row(
-                        Modifier.fillMaxWidth().padding(10.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
+                Surface(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp), color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.48f)) {
+                    Row(Modifier.fillMaxWidth().padding(10.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                         Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                             Surface(shape = CircleShape, color = activityColor(activity.severity).copy(alpha = 0.18f)) {
                                 Box(Modifier.size(36.dp), contentAlignment = Alignment.Center) {

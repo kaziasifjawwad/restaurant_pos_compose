@@ -65,7 +65,7 @@ class PosApiService(
      * POST /pos
      */
     suspend fun createOrder(request: FoodOrderByCustomerRequest): Result<FoodOrderShortInfo> {
-        println("[$TAG] createOrder: tableId=${request.tableId}, waiterId=${request.waiterId}")
+        println("[$TAG] createOrder: tableId=${request.tableId}, waiterId=${request.waiterId}, paymentMethod=${request.paymentMethod}")
         return executeRequest {
             val token = requireToken()
             val response: HttpResponse = client.post("$baseUrl/pos") {
@@ -83,7 +83,7 @@ class PosApiService(
      * PUT /pos/{id}
      */
     suspend fun updateOrder(id: Long, request: FoodOrderByCustomerRequest): Result<FoodOrderShortInfo> {
-        println("[$TAG] updateOrder: id=$id")
+        println("[$TAG] updateOrder: id=$id, paymentMethod=${request.paymentMethod}")
         return executeRequest {
             val token = requireToken()
             val response: HttpResponse = client.put("$baseUrl/pos/$id") {
@@ -122,13 +122,17 @@ class PosApiService(
 
     /**
      * Set order status to PAID or CANCELED
-     * PUT /pos/paid-or-cancel/{id}?orderStatus=...
+     * PUT /pos/paid-or-cancel/{id}?orderStatus=...&paymentMethod=...
      */
-    suspend fun setPaidOrCancel(id: Long, status: OrderStatus): Result<FoodOrderByCustomer> {
+    suspend fun setPaidOrCancel(
+        id: Long,
+        status: OrderStatus,
+        paymentMethod: PaymentMethod? = null
+    ): Result<FoodOrderByCustomer> {
         require(status == OrderStatus.PAID || status == OrderStatus.CANCELED) {
             "Invalid status for paid-or-cancel: $status"
         }
-        println("[$TAG] setPaidOrCancel: id=$id, status=$status")
+        println("[$TAG] setPaidOrCancel: id=$id, status=$status, paymentMethod=$paymentMethod")
         return executeRequest {
             val token = requireToken()
             val response: HttpResponse = client.put("$baseUrl/pos/paid-or-cancel/$id") {
@@ -136,6 +140,9 @@ class PosApiService(
                 accept(ContentType.Application.Json)
                 url {
                     parameters.append("orderStatus", status.name)
+                    if (paymentMethod != null) {
+                        parameters.append("paymentMethod", paymentMethod.name)
+                    }
                 }
             }
             handleResponse<FoodOrderByCustomer>(response, "Failed to update order status")
@@ -143,6 +150,22 @@ class PosApiService(
     }
 
     // ==================== Lookup Endpoints ====================
+
+    /**
+     * Get allowed payment methods from backend.
+     * GET /pos/payment-methods
+     */
+    suspend fun getPaymentMethods(): Result<List<PaymentMethod>> {
+        println("[$TAG] getPaymentMethods")
+        return executeRequest {
+            val token = requireToken()
+            val response: HttpResponse = client.get("$baseUrl/pos/payment-methods") {
+                header(HttpHeaders.Authorization, "Bearer $token")
+                accept(ContentType.Application.Json)
+            }
+            handleResponse<List<PaymentMethod>>(response, "Failed to load payment methods")
+        }
+    }
 
     /**
      * Get all waiters

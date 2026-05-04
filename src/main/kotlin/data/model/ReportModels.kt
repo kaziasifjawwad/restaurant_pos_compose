@@ -52,6 +52,19 @@ data class Pageable(
 )
 
 @Serializable
+data class PosReportWaiterResponse(
+    val id: String,
+    val firstName: String? = null,
+    val lastName: String? = null,
+    val fullName: String,
+    val mobileNumber: String? = null,
+    val username: String? = null,
+    val presetAddress: String? = null,
+    val permanentAddress: String? = null,
+    val enabled: Boolean = true
+)
+
+@Serializable
 data class PosOrderDetailResponse(
     val id: String,
     val waiterName: String,

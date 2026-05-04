@@ -431,18 +431,18 @@ fun PosOrderEditorScreen(
                                     OutlinedTextField(
                                         value = foodSerialInput,
                                         onValueChange = { foodSerialInput = it },
-                                        label = { Text("Item # or 1*3 or 1 2*3") },
+                                        label = { Text("Item # or 1*3") },
                                         supportingText = {
                                             Text(
                                                 if (foodSerialInput.trim().contains(' ')) {
-                                                    "Multiple items use their default packages"
+                                                    "Multiple items use default packages"
                                                 } else {
-                                                    "Leave package blank to use the default package"
+                                                    "Blank package = default"
                                                 }
                                             )
                                         },
                                         modifier = Modifier
-                                            .weight(1f)
+                                            .weight(0.5f)
                                             .onPreviewKeyEvent { event ->
                                                 if (event.key == Key.Enter && event.type == KeyEventType.KeyUp) {
                                                     addFoodItem()
@@ -461,7 +461,7 @@ fun PosOrderEditorScreen(
                                         items = availablePackageSizes,
                                         itemText = { it.name },
                                         onSelect = { selectedFoodSize = it },
-                                        modifier = Modifier.width(124.dp),
+                                        modifier = Modifier.weight(0.5f),
                                         enabled = isPackageDropdownEnabled
                                     )
                                 }

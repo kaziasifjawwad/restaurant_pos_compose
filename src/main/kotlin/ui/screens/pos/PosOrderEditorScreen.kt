@@ -16,7 +16,13 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import data.model.*
@@ -49,9 +55,25 @@ fun PosOrderEditorScreen(
     var foodOrders by remember { mutableStateOf<List<FoodOrderEntry>>(emptyList()) }
     var beverageOrders by remember { mutableStateOf<List<BeverageOrderEntry>>(emptyList()) }
 
-    // Food input state. Null means: use backend default package for that food item.
+    // Food input state. Null foodSize means the backend will use the food item's default package.
     var foodSerialInput by remember { mutableStateOf("") }
     var selectedFoodSize by remember { mutableStateOf<FoodSize?>(null) }
+
+    val parsedFoodInput = remember(foodSerialInput) { parseFoodInput(foodSerialInput) }
+    val isSingleFoodInput = parsedFoodInput.size == 1
+    val selectedInputFoodItem = remember(parsedFoodInput, uiState.foodItems) {
+        parsedFoodInput.singleOrNull()?.let { viewModel.getFoodItemByNumber(it.itemNumber) }
+    }
+    val availablePackageSizes = remember(selectedInputFoodItem) {
+        selectedInputFoodItem?.foodPrices?.map { it.foodSize }?.distinct() ?: emptyList()
+    }
+    val isPackageDropdownEnabled = isSingleFoodInput && availablePackageSizes.isNotEmpty()
+
+    LaunchedEffect(foodSerialInput, availablePackageSizes) {
+        if (!isPackageDropdownEnabled || selectedFoodSize !in availablePackageSizes) {
+            selectedFoodSize = null
+        }
+    }
 
     // Beverage input state
     var selectedBeverage by remember { mutableStateOf<BeverageResponse?>(null) }
@@ -124,64 +146,61 @@ fun PosOrderEditorScreen(
             return
         }
 
-        val regexPattern = "^(?:\\d+|(?:\\d+\\s*\\*\\s*\\d+))(?:\\s+(?:\\d+|(?:\\d+\\s*\\*\\s*\\d+)))*$"
-        if (!textRepresentation.matches(Regex(regexPattern))) {
+        val orderItems = parseFoodInput(textRepresentation)
+        if (orderItems.isEmpty()) {
             viewModel.onEvent(PosUiEvent.ShowError("Invalid pattern. Use: 1 or 1*3 or 1 2*3"))
             return
         }
 
-        val orderItems = textRepresentation.split(" ").map { it.split("*") }
+        val selectedSizeForThisAdd = if (orderItems.size == 1) selectedFoodSize else null
+        val entriesToAdd = mutableListOf<FoodOrderEntry>()
 
-        orderItems.forEach { order ->
-            val itemNumber: Short
-            val quantity: Int
-
-            try {
-                if (order.size == 1) {
-                    itemNumber = order[0].toShort()
-                    quantity = 1
-                } else {
-                    itemNumber = order[0].toShort()
-                    quantity = order[1].toInt()
-                }
-            } catch (e: NumberFormatException) {
-                viewModel.onEvent(PosUiEvent.ShowError("Invalid number format"))
-                return@forEach
-            }
-
-            val foodItem = viewModel.getFoodItemByNumber(itemNumber)
+        for (order in orderItems) {
+            val foodItem = viewModel.getFoodItemByNumber(order.itemNumber)
             if (foodItem == null) {
-                viewModel.onEvent(PosUiEvent.ShowError("Item #$itemNumber not found"))
-                return@forEach
+                viewModel.onEvent(PosUiEvent.ShowError("Item #${order.itemNumber} not found"))
+                return
             }
 
-            val priceInfo = selectedFoodSize?.let { selectedSize ->
+            val priceInfo = selectedSizeForThisAdd?.let { selectedSize ->
                 foodItem.foodPrices.find { it.foodSize == selectedSize }
+                    ?: run {
+                        viewModel.onEvent(
+                            PosUiEvent.ShowError("${foodItem.name} has no ${selectedSize.name} package configured")
+                        )
+                        return
+                    }
             } ?: foodItem.defaultPrice ?: foodItem.foodPrices.firstOrNull { it.isDefault }
 
             if (priceInfo == null) {
-                val sizeLabel = selectedFoodSize?.name ?: "default package"
-                viewModel.onEvent(PosUiEvent.ShowError("${foodItem.name} has no $sizeLabel price configured"))
-                return@forEach
+                viewModel.onEvent(PosUiEvent.ShowError("${foodItem.name} has no default package configured"))
+                return
             }
 
-            foodOrders = foodOrders.filter {
-                !(it.itemNumber == itemNumber && it.requestedFoodSize == selectedFoodSize)
-            }
-
-            foodOrders = foodOrders + FoodOrderEntry(
-                itemNumber = itemNumber,
-                foodName = foodItem.name,
-                actualFoodSize = priceInfo.foodSize,
-                requestedFoodSize = selectedFoodSize,
-                quantity = quantity,
-                price = priceInfo.foodPrice,
-                discount = 0.0,
-                discountType = DiscountType.PERCENTAGE
+            entriesToAdd.add(
+                FoodOrderEntry(
+                    itemNumber = order.itemNumber,
+                    foodName = foodItem.name,
+                    actualFoodSize = priceInfo.foodSize,
+                    requestedFoodSize = selectedSizeForThisAdd,
+                    quantity = order.quantity,
+                    price = priceInfo.foodPrice,
+                    discount = 0.0,
+                    discountType = DiscountType.PERCENTAGE
+                )
             )
         }
 
+        var updatedFoodOrders = foodOrders
+        entriesToAdd.forEach { entry ->
+            updatedFoodOrders = updatedFoodOrders.filter {
+                !(it.itemNumber == entry.itemNumber && it.requestedFoodSize == entry.requestedFoodSize)
+            } + entry
+        }
+        foodOrders = updatedFoodOrders
+
         foodSerialInput = ""
+        selectedFoodSize = null
     }
 
     fun addBeverageItem() {
@@ -412,18 +431,37 @@ fun PosOrderEditorScreen(
                                         value = foodSerialInput,
                                         onValueChange = { foodSerialInput = it },
                                         label = { Text("Item # or 1*3 or 1 2*3") },
-                                        supportingText = { Text("Leave package as Default for fastest ordering") },
-                                        modifier = Modifier.weight(1f),
+                                        supportingText = {
+                                            Text(
+                                                if (foodSerialInput.trim().contains(' ')) {
+                                                    "Multiple items use their default packages"
+                                                } else {
+                                                    "Leave package blank to use the default package"
+                                                }
+                                            )
+                                        },
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .onPreviewKeyEvent { event ->
+                                                if (event.key == Key.Enter && event.type == KeyEventType.KeyUp) {
+                                                    addFoodItem()
+                                                    true
+                                                } else {
+                                                    false
+                                                }
+                                            },
                                         singleLine = true,
-                                        shape = RoundedCornerShape(10.dp)
+                                        shape = RoundedCornerShape(10.dp),
+                                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done)
                                     )
                                     PosDropdown(
                                         label = "Package",
-                                        selected = selectedFoodSize?.name ?: "DEFAULT",
-                                        items = listOf<FoodSize?>(null) + FoodSize.entries.toList(),
-                                        itemText = { it?.name ?: "DEFAULT" },
+                                        selected = selectedFoodSize?.name ?: "",
+                                        items = availablePackageSizes,
+                                        itemText = { it.name },
                                         onSelect = { selectedFoodSize = it },
-                                        modifier = Modifier.width(124.dp)
+                                        modifier = Modifier.width(124.dp),
+                                        enabled = isPackageDropdownEnabled
                                     )
                                 }
                                 Spacer(modifier = Modifier.height(8.dp))
@@ -543,6 +581,32 @@ fun PosOrderEditorScreen(
     }
 }
 
+private data class ParsedFoodInput(
+    val itemNumber: Short,
+    val quantity: Int
+)
+
+private fun parseFoodInput(input: String): List<ParsedFoodInput> {
+    val text = input.trim()
+    if (text.isBlank()) return emptyList()
+
+    return text.split(Regex("\\s+"))
+        .map { token ->
+            val parts = token.split("*")
+            if (parts.isEmpty() || parts.size > 2 || parts.any { it.isBlank() }) {
+                return emptyList()
+            }
+
+            val itemNumber = parts[0].toShortOrNull() ?: return emptyList()
+            val quantity = if (parts.size == 1) 1 else parts[1].toIntOrNull() ?: return emptyList()
+            if (itemNumber <= 0 || quantity <= 0) {
+                return emptyList()
+            }
+
+            ParsedFoodInput(itemNumber = itemNumber, quantity = quantity)
+        }
+}
+
 // Entry classes for editor state
 private data class FoodOrderEntry(
     val itemNumber: Short,
@@ -655,38 +719,48 @@ private fun <T> PosDropdown(
     items: List<T>,
     itemText: (T) -> String,
     onSelect: (T) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true
 ) {
     var expanded by remember { mutableStateOf(false) }
 
     ExposedDropdownMenuBox(
-        expanded = expanded,
-        onExpandedChange = { expanded = it },
+        expanded = enabled && expanded,
+        onExpandedChange = { if (enabled) expanded = it },
         modifier = modifier
     ) {
         OutlinedTextField(
             value = selected,
             onValueChange = {},
             readOnly = true,
+            enabled = enabled,
             label = { Text(label) },
-            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = enabled && expanded) },
             modifier = Modifier.menuAnchor().fillMaxWidth(),
             shape = RoundedCornerShape(10.dp),
             singleLine = true
         )
 
         ExposedDropdownMenu(
-            expanded = expanded,
+            expanded = enabled && expanded,
             onDismissRequest = { expanded = false }
         ) {
-            items.forEach { item ->
+            if (items.isEmpty()) {
                 DropdownMenuItem(
-                    text = { Text(itemText(item)) },
-                    onClick = {
-                        onSelect(item)
-                        expanded = false
-                    }
+                    text = { Text("No package") },
+                    onClick = { expanded = false },
+                    enabled = false
                 )
+            } else {
+                items.forEach { item ->
+                    DropdownMenuItem(
+                        text = { Text(itemText(item)) },
+                        onClick = {
+                            onSelect(item)
+                            expanded = false
+                        }
+                    )
+                }
             }
         }
     }

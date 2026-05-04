@@ -4,6 +4,7 @@ import data.auth.AuthManager
 import data.config.AppConfig
 import data.model.PosOrderDetailResponse
 import data.model.PosReportDashboardResponse
+import data.model.PosReportWaiterResponse
 import io.ktor.client.call.*
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
@@ -24,6 +25,18 @@ class ReportApiService {
             header(HttpHeaders.Authorization, "Bearer $token")
         } else {
             println("[$TAG] Warning: No auth token found")
+        }
+    }
+
+    suspend fun getWaiters(): List<PosReportWaiterResponse> {
+        println("[$TAG] Getting waiter lookup list")
+        return try {
+            client.get("$baseUrl/user-info/waiter") {
+                auth()
+            }.body()
+        } catch (e: Exception) {
+            println("[$TAG] Error getting waiters: ${e.message}")
+            throw e
         }
     }
 

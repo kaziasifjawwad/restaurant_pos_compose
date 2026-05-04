@@ -26,8 +26,6 @@ import androidx.compose.material.icons.filled.Restaurant
 import androidx.compose.material.icons.filled.TableRestaurant
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -105,7 +103,7 @@ fun PosOrderDetailScreen(
                     Brush.verticalGradient(
                         listOf(
                             MaterialTheme.colorScheme.background,
-                            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.16f)
+                            MaterialTheme.colorScheme.surface.copy(alpha = 0.96f)
                         )
                     )
                 )
@@ -157,7 +155,8 @@ private fun OrderDetailTopBar(
                 OutlinedButton(
                     onClick = { },
                     shape = RoundedCornerShape(12.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.35f))
+                    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.45f)),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Goldenrod)
                 ) {
                     Icon(Icons.Filled.Print, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(8.dp))
@@ -166,7 +165,7 @@ private fun OrderDetailTopBar(
                 OutlinedButton(
                     onClick = { },
                     shape = RoundedCornerShape(12.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, RefundRed.copy(alpha = 0.45f)),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, RefundRed.copy(alpha = 0.62f)),
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = RefundRed)
                 ) {
                     Text("Refund", fontWeight = FontWeight.SemiBold)
@@ -204,7 +203,7 @@ private fun ReceiptMetaBar(orderDetail: PosOrderDetailResponse) {
             icon = Icons.Filled.TableRestaurant,
             label = "Table",
             value = "Table ${orderDetail.tableNumber}",
-            tint = Color(0xFF8B7355),
+            tint = Goldenrod.copy(alpha = 0.78f),
             modifier = Modifier.weight(1f)
         )
         MetaInfoCard(
@@ -227,24 +226,27 @@ private fun MetaInfoCard(
     modifier: Modifier = Modifier,
     success: Boolean = false
 ) {
+    val container = if (success) PaidGreen.copy(alpha = 0.14f) else MaterialTheme.colorScheme.surface
+    val valueColor = if (success) PaidGreen else MaterialTheme.colorScheme.onSurface
+
     Surface(
         modifier = modifier,
         shape = RoundedCornerShape(18.dp),
-        color = if (success) PaidGreenSoft else MaterialTheme.colorScheme.surface,
+        color = container,
         shadowElevation = 1.dp,
-        border = androidx.compose.foundation.BorderStroke(1.dp, tint.copy(alpha = if (success) 0.20f else 0.12f))
+        border = androidx.compose.foundation.BorderStroke(1.dp, tint.copy(alpha = if (success) 0.30f else 0.16f))
     ) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(18.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            Surface(shape = RoundedCornerShape(12.dp), color = tint.copy(alpha = 0.14f)) {
+            Surface(shape = RoundedCornerShape(12.dp), color = tint.copy(alpha = 0.16f)) {
                 Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.padding(10.dp).size(24.dp))
             }
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text(value, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = if (success) Color(0xFF14532D) else MaterialTheme.colorScheme.onSurface)
+                Text(value, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = valueColor)
             }
         }
     }
@@ -257,7 +259,7 @@ private fun OrderedItemsCard(orderDetail: PosOrderDetailResponse, df: DecimalFor
         shape = RoundedCornerShape(18.dp),
         color = MaterialTheme.colorScheme.surface,
         shadowElevation = 2.dp,
-        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.12f))
+        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.18f))
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
             Row(
@@ -265,10 +267,10 @@ private fun OrderedItemsCard(orderDetail: PosOrderDetailResponse, df: DecimalFor
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Text("ORDERED ITEMS", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black)
+                Text("ORDERED ITEMS", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.onSurface)
                 Text("${orderDetail.foodOrders.size + orderDetail.beverageOrders.size} items", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.14f))
+            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.18f))
             ReceiptHeaderRow()
 
             if (orderDetail.foodOrders.isNotEmpty()) {
@@ -287,13 +289,13 @@ private fun OrderedItemsCard(orderDetail: PosOrderDetailResponse, df: DecimalFor
 @Composable
 private fun ReceiptHeaderRow() {
     Row(
-        modifier = Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)).padding(horizontal = 20.dp, vertical = 12.dp),
+        modifier = Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.50f)).padding(horizontal = 20.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text("Item", modifier = Modifier.weight(2f), style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
-        Text("Price", modifier = Modifier.weight(0.75f), style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
-        Text("Qty", modifier = Modifier.weight(0.55f), style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
-        Text("Subtotal", modifier = Modifier.weight(0.85f), style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+        Text("Item", modifier = Modifier.weight(2f), style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+        Text("Price", modifier = Modifier.weight(0.75f), style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+        Text("Qty", modifier = Modifier.weight(0.55f), style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+        Text("Subtotal", modifier = Modifier.weight(0.85f), style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
     }
 }
 
@@ -306,7 +308,7 @@ private fun ReceiptSectionHeader(title: String) {
         fontWeight = FontWeight.Black,
         color = Goldenrod
     )
-    HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.08f))
+    HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.10f))
 }
 
 @Composable
@@ -347,14 +349,14 @@ private fun ReceiptLineRow(
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(modifier = Modifier.weight(2f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-            Text(name, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
+            Text(name, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
             Text(variant, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        Text("৳${df.format(price)}", modifier = Modifier.weight(0.75f), style = MaterialTheme.typography.bodyMedium)
-        Text(qty, modifier = Modifier.weight(0.55f), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
+        Text("৳${df.format(price)}", modifier = Modifier.weight(0.75f), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
+        Text(qty, modifier = Modifier.weight(0.55f), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
         Text("৳${df.format(subtotal)}", modifier = Modifier.weight(0.85f), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold, color = Goldenrod)
     }
-    HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.08f))
+    HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.10f))
 }
 
 @Composable
@@ -367,16 +369,21 @@ private fun FinancialSummary(orderDetail: PosOrderDetailResponse, df: DecimalFor
         Surface(
             modifier = Modifier.width(440.dp),
             shape = RoundedCornerShape(18.dp),
-            color = Color(0xFFFFF8E1),
-            border = androidx.compose.foundation.BorderStroke(1.dp, Goldenrod.copy(alpha = 0.18f)),
+            color = MaterialTheme.colorScheme.surface,
+            border = androidx.compose.foundation.BorderStroke(1.dp, Goldenrod.copy(alpha = 0.26f)),
             shadowElevation = 2.dp
         ) {
             Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("FINANCIAL SUMMARY", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black)
-                HorizontalDivider(color = Goldenrod.copy(alpha = 0.18f))
+                Text(
+                    "FINANCIAL SUMMARY",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Black,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.18f))
                 SummaryLine("Subtotal", "৳${df.format(subtotal)}")
                 SummaryLine(discountLabel(orderDetail), "৳${df.format(orderDetail.discount)}")
-                HorizontalDivider(color = Goldenrod.copy(alpha = 0.18f))
+                HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.18f))
                 SummaryLine("TOTAL PAID", "৳${df.format(orderDetail.totalAmount)}", total = true)
                 SummaryLine("Payment Method", orderDetail.paymentMethod?.uppercase() ?: "N/A")
             }
@@ -387,8 +394,18 @@ private fun FinancialSummary(orderDetail: PosOrderDetailResponse, df: DecimalFor
 @Composable
 private fun SummaryLine(label: String, value: String, total: Boolean = false) {
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-        Text(label, style = if (total) MaterialTheme.typography.titleMedium else MaterialTheme.typography.bodyMedium, fontWeight = if (total) FontWeight.Black else FontWeight.Medium)
-        Text(value, style = if (total) MaterialTheme.typography.titleLarge else MaterialTheme.typography.bodyMedium, fontWeight = if (total) FontWeight.Black else FontWeight.SemiBold, color = if (total) Goldenrod else MaterialTheme.colorScheme.onSurface)
+        Text(
+            label,
+            style = if (total) MaterialTheme.typography.titleMedium else MaterialTheme.typography.bodyMedium,
+            fontWeight = if (total) FontWeight.Black else FontWeight.Medium,
+            color = if (total) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Text(
+            value,
+            style = if (total) MaterialTheme.typography.titleLarge else MaterialTheme.typography.bodyMedium,
+            fontWeight = if (total) FontWeight.Black else FontWeight.SemiBold,
+            color = if (total) Goldenrod else MaterialTheme.colorScheme.onSurface
+        )
     }
 }
 
@@ -398,7 +415,7 @@ private fun OrderDetailLoading() {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             CircularProgressIndicator(color = Goldenrod)
             Spacer(modifier = Modifier.height(16.dp))
-            Text("Loading order details...", style = MaterialTheme.typography.bodyMedium)
+            Text("Loading order details...", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
         }
     }
 }

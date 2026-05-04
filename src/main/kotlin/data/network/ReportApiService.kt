@@ -49,7 +49,8 @@ class ReportApiService {
         waiterId: String? = null,
         amountFrom: String? = null,
         amountTo: String? = null,
-        orderStatus: String? = null
+        orderStatus: String? = null,
+        paymentMethod: String? = null
     ): PosReportDashboardResponse {
         println("[$TAG] Getting POS dashboard report: page=$page, size=$size")
         return try {
@@ -64,6 +65,7 @@ class ReportApiService {
                 if (!amountFrom.isNullOrBlank()) parameter("amountFrom", amountFrom)
                 if (!amountTo.isNullOrBlank()) parameter("amountTo", amountTo)
                 if (!orderStatus.isNullOrBlank()) parameter("orderStatus", orderStatus)
+                if (!paymentMethod.isNullOrBlank()) parameter("paymentMethod", paymentMethod)
             }.body()
         } catch (e: Exception) {
             println("[$TAG] Error getting POS reports: ${e.message}")

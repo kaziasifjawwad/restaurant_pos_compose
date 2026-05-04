@@ -2,6 +2,7 @@ package ui.screens.pos
 
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -30,9 +31,6 @@ import ui.viewmodel.PosUiEvent
 import ui.viewmodel.PosViewModel
 import java.text.DecimalFormat
 
-/**
- * POS Order Detail Screen - shows full order details with status actions
- */
 @Composable
 fun PosOrderDetailScreen(
     orderId: Long,
@@ -45,6 +43,7 @@ fun PosOrderDetailScreen(
 
     LaunchedEffect(orderId) {
         viewModel.onEvent(PosUiEvent.LoadOrderDetail(orderId))
+        viewModel.onEvent(PosUiEvent.RefreshPaymentMethods)
         delay(100)
         isContentVisible = true
     }
@@ -87,7 +86,11 @@ fun PosOrderDetailScreen(
                         visible = isContentVisible,
                         enter = fadeIn(animationSpec = tween(AppAnimations.DURATION_ENTRANCE))
                     ) {
-                        PosDetailContent(order = uiState.selectedOrder!!, viewModel = viewModel)
+                        PosDetailContent(
+                            order = uiState.selectedOrder!!,
+                            paymentMethods = uiState.paymentMethods,
+                            viewModel = viewModel
+                        )
                     }
                 }
                 isClosingAfterSuccessfulAction -> PosDetailClosingContent()
@@ -125,11 +128,7 @@ private fun PosDetailHeader(order: FoodOrderByCustomer?, onBack: () -> Unit, onE
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = onBack) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "Back",
-                        tint = MaterialTheme.colorScheme.onSurface
-                    )
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = MaterialTheme.colorScheme.onSurface)
                 }
                 Spacer(modifier = Modifier.width(12.dp))
                 Column {
@@ -166,9 +165,12 @@ private fun PosDetailHeader(order: FoodOrderByCustomer?, onBack: () -> Unit, onE
 }
 
 @Composable
-private fun PosDetailContent(order: FoodOrderByCustomer, viewModel: PosViewModel) {
+private fun PosDetailContent(
+    order: FoodOrderByCustomer,
+    paymentMethods: List<PaymentMethodResponse>,
+    viewModel: PosViewModel
+) {
     val df = remember { DecimalFormat("#,##0.00") }
-
     val statusColor = when (order.orderStatus) {
         OrderStatus.ORDER_PLACED -> MaterialTheme.colorScheme.primary
         OrderStatus.BILL_PRINTED -> MaterialTheme.colorScheme.tertiary
@@ -205,7 +207,6 @@ private fun PosDetailContent(order: FoodOrderByCustomer, viewModel: PosViewModel
                                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
                                 )
                             }
-
                             Surface(shape = RoundedCornerShape(8.dp), color = statusColor.copy(alpha = 0.15f)) {
                                 Text(
                                     text = order.orderStatus.displayName,
@@ -218,18 +219,10 @@ private fun PosDetailContent(order: FoodOrderByCustomer, viewModel: PosViewModel
                         }
 
                         Spacer(modifier = Modifier.height(16.dp))
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceEvenly
-                        ) {
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
                             PosInfoItem(icon = Icons.Outlined.Person, label = "Waiter", value = order.waiterName ?: "Unknown")
                             PosInfoItem(icon = Icons.Outlined.AttachMoney, label = "Total", value = "৳ ${df.format(order.totalAmount)}")
-                            PosInfoItem(
-                                icon = Icons.Outlined.Payments,
-                                label = "Payment",
-                                value = order.paymentMethod?.displayName ?: "Not selected"
-                            )
+                            PosInfoItem(icon = Icons.Outlined.Payments, label = "Payment", value = order.paymentMethod?.displayName ?: "Not selected")
                             if (order.discount > 0) {
                                 PosInfoItem(
                                     icon = Icons.Outlined.Discount,
@@ -243,17 +236,10 @@ private fun PosDetailContent(order: FoodOrderByCustomer, viewModel: PosViewModel
             }
         }
 
-        item { PosDetailActionButtons(order = order, viewModel = viewModel) }
+        item { PosDetailActionButtons(order = order, paymentMethods = paymentMethods, viewModel = viewModel, df = df) }
 
         if (order.foodOrders.isNotEmpty()) {
-            item {
-                Text(
-                    text = "Food Items",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-            }
+            item { SectionTitle("Food Items") }
             itemsIndexed(order.foodOrders) { _, foodOrder ->
                 PosOrderItemCard(
                     name = foodOrder.foodName ?: "Food #${foodOrder.itemNumber}",
@@ -266,14 +252,7 @@ private fun PosDetailContent(order: FoodOrderByCustomer, viewModel: PosViewModel
         }
 
         if (order.beverageOrders.isNotEmpty()) {
-            item {
-                Text(
-                    text = "Beverages",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-            }
+            item { SectionTitle("Beverages") }
             itemsIndexed(order.beverageOrders) { _, bevOrder ->
                 PosOrderItemCard(
                     name = bevOrder.beverageName ?: "Beverage #${bevOrder.beverageId}",
@@ -284,21 +263,20 @@ private fun PosDetailContent(order: FoodOrderByCustomer, viewModel: PosViewModel
                 )
             }
         }
-
         item { Spacer(modifier = Modifier.height(32.dp)) }
     }
+}
+
+@Composable
+private fun SectionTitle(title: String) {
+    Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
 }
 
 @Composable
 private fun PosInfoItem(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, value: String) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Surface(shape = RoundedCornerShape(10.dp), color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f)) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                modifier = Modifier.padding(10.dp).size(24.dp),
-                tint = MaterialTheme.colorScheme.secondary
-            )
+            Icon(imageVector = icon, contentDescription = null, modifier = Modifier.padding(10.dp).size(24.dp), tint = MaterialTheme.colorScheme.secondary)
         }
         Spacer(modifier = Modifier.height(8.dp))
         Text(text = value, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
@@ -307,7 +285,27 @@ private fun PosInfoItem(icon: androidx.compose.ui.graphics.vector.ImageVector, l
 }
 
 @Composable
-private fun PosDetailActionButtons(order: FoodOrderByCustomer, viewModel: PosViewModel) {
+private fun PosDetailActionButtons(
+    order: FoodOrderByCustomer,
+    paymentMethods: List<PaymentMethodResponse>,
+    viewModel: PosViewModel,
+    df: DecimalFormat
+) {
+    var showCompletionDialog by remember { mutableStateOf(false) }
+
+    if (showCompletionDialog) {
+        CompleteOrderDialog(
+            order = order,
+            paymentMethods = paymentMethods,
+            df = df,
+            onDismiss = { showCompletionDialog = false },
+            onConfirm = { paymentMethod ->
+                showCompletionDialog = false
+                viewModel.onEvent(PosUiEvent.CompleteOrder(order.id, paymentMethod))
+            }
+        )
+    }
+
     when (order.orderStatus) {
         OrderStatus.ORDER_PLACED -> {
             Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -318,44 +316,34 @@ private fun PosDetailActionButtons(order: FoodOrderByCustomer, viewModel: PosVie
                         shape = RoundedCornerShape(12.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.tertiary)
                     ) {
-                        Icon(Icons.Outlined.Print, null, Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Print Bill")
+                        Icon(Icons.Outlined.Print, null, Modifier.size(18.dp)); Spacer(modifier = Modifier.width(8.dp)); Text("Print Bill")
                     }
-
                     Button(
                         onClick = { viewModel.onEvent(PosUiEvent.PrintKitchenMemo(order.id)) },
                         modifier = Modifier.weight(1f),
                         shape = RoundedCornerShape(12.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
                     ) {
-                        Icon(Icons.Outlined.Restaurant, null, Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Kitchen Memo")
+                        Icon(Icons.Outlined.Restaurant, null, Modifier.size(18.dp)); Spacer(modifier = Modifier.width(8.dp)); Text("Kitchen Memo")
                     }
                 }
 
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     Button(
-                        onClick = { viewModel.onEvent(PosUiEvent.CompleteOrder(order.id, order.paymentMethod)) },
+                        onClick = { showCompletionDialog = true },
                         modifier = Modifier.weight(1f),
                         shape = RoundedCornerShape(12.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
                     ) {
-                        Icon(Icons.Outlined.CheckCircle, null, Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Complete Order")
+                        Icon(Icons.Outlined.CheckCircle, null, Modifier.size(18.dp)); Spacer(modifier = Modifier.width(8.dp)); Text("Complete Order")
                     }
-
                     OutlinedButton(
                         onClick = { viewModel.onEvent(PosUiEvent.CancelOrder(order.id)) },
                         modifier = Modifier.weight(1f),
                         shape = RoundedCornerShape(12.dp),
                         colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)
                     ) {
-                        Icon(Icons.Outlined.Cancel, null, Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Cancel")
+                        Icon(Icons.Outlined.Cancel, null, Modifier.size(18.dp)); Spacer(modifier = Modifier.width(8.dp)); Text("Cancel")
                     }
                 }
             }
@@ -363,29 +351,141 @@ private fun PosDetailActionButtons(order: FoodOrderByCustomer, viewModel: PosVie
         OrderStatus.BILL_PRINTED -> {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Button(
-                    onClick = { viewModel.onEvent(PosUiEvent.CompleteOrder(order.id, order.paymentMethod)) },
+                    onClick = { showCompletionDialog = true },
                     modifier = Modifier.weight(1f),
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
                 ) {
-                    Icon(Icons.Outlined.CheckCircle, null, Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Complete Order")
+                    Icon(Icons.Outlined.CheckCircle, null, Modifier.size(18.dp)); Spacer(modifier = Modifier.width(8.dp)); Text("Complete Order")
                 }
-
                 OutlinedButton(
                     onClick = { viewModel.onEvent(PosUiEvent.CancelOrder(order.id)) },
                     modifier = Modifier.weight(1f),
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)
                 ) {
-                    Icon(Icons.Outlined.Cancel, null, Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Cancel")
+                    Icon(Icons.Outlined.Cancel, null, Modifier.size(18.dp)); Spacer(modifier = Modifier.width(8.dp)); Text("Cancel")
                 }
             }
         }
         else -> Unit
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun CompleteOrderDialog(
+    order: FoodOrderByCustomer,
+    paymentMethods: List<PaymentMethodResponse>,
+    df: DecimalFormat,
+    onDismiss: () -> Unit,
+    onConfirm: (PaymentMethod) -> Unit
+) {
+    val defaultPayment = paymentMethods.firstOrNull { it.defaultMethod } ?: paymentMethods.firstOrNull()
+    var selectedPayment by remember(paymentMethods) { mutableStateOf(defaultPayment) }
+    var expanded by remember { mutableStateOf(false) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Complete Order", fontWeight = FontWeight.Bold) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("Review items and select payment method", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                OrderSummaryTable(order = order, df = df)
+                HorizontalDivider()
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text("Total", fontWeight = FontWeight.Bold)
+                    Text("৳ ${df.format(order.totalAmount)}", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                }
+                ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it }) {
+                    OutlinedTextField(
+                        value = selectedPayment?.displayName ?: "",
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("Payment Method") },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+                        modifier = Modifier.menuAnchor().fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp),
+                        singleLine = true,
+                        enabled = paymentMethods.isNotEmpty()
+                    )
+                    ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                        paymentMethods.forEach { method ->
+                            DropdownMenuItem(
+                                text = {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text(method.displayName)
+                                        if (method.defaultMethod) {
+                                            Spacer(Modifier.width(8.dp))
+                                            AssistChip(onClick = {}, label = { Text("Default") }, enabled = false)
+                                        }
+                                    }
+                                },
+                                onClick = {
+                                    selectedPayment = method
+                                    expanded = false
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = { selectedPayment?.methodCode?.let(onConfirm) },
+                enabled = selectedPayment != null,
+                shape = RoundedCornerShape(10.dp)
+            ) { Text("Complete") }
+        },
+        dismissButton = {
+            OutlinedButton(onClick = onDismiss, shape = RoundedCornerShape(10.dp)) { Text("Cancel") }
+        }
+    )
+}
+
+@Composable
+private fun OrderSummaryTable(order: FoodOrderByCustomer, df: DecimalFormat) {
+    Column(
+        modifier = Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f), RoundedCornerShape(10.dp)).padding(10.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        Row(Modifier.fillMaxWidth()) {
+            Text("Item", modifier = Modifier.weight(1f), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelMedium)
+            Text("Qty", modifier = Modifier.width(48.dp), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelMedium)
+            Text("Total", modifier = Modifier.width(90.dp), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelMedium)
+        }
+        HorizontalDivider()
+        order.foodOrders.forEach { item ->
+            SummaryRow(
+                name = item.foodName ?: "Food #${item.itemNumber}",
+                details = item.foodSize.name,
+                qty = item.foodQuantity.toString(),
+                total = item.foodPrice * item.foodQuantity,
+                df = df
+            )
+        }
+        order.beverageOrders.forEach { item ->
+            SummaryRow(
+                name = item.beverageName ?: "Beverage #${item.beverageId}",
+                details = "${item.quantity} ${item.unit?.name ?: ""}",
+                qty = item.amount.toString(),
+                total = item.price * item.amount,
+                df = df
+            )
+        }
+    }
+}
+
+@Composable
+private fun SummaryRow(name: String, details: String, qty: String, total: Double, df: DecimalFormat) {
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f)) {
+            Text(name, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold)
+            Text(details, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        Text(qty, modifier = Modifier.width(48.dp), style = MaterialTheme.typography.bodySmall)
+        Text("৳ ${df.format(total)}", modifier = Modifier.width(90.dp), style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold)
     }
 }
 
@@ -404,28 +504,18 @@ private fun PosOrderItemCard(name: String, subtitle: String, price: Double, df: 
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = elevation),
-        border = androidx.compose.foundation.BorderStroke(1.dp, borderColor)
+        border = BorderStroke(1.dp, borderColor)
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(16.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
+        Row(modifier = Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
                 Surface(shape = RoundedCornerShape(8.dp), color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)) {
-                    Icon(
-                        imageVector = icon,
-                        contentDescription = null,
-                        modifier = Modifier.padding(8.dp).size(20.dp),
-                        tint = MaterialTheme.colorScheme.primary
-                    )
+                    Icon(imageVector = icon, contentDescription = null, modifier = Modifier.padding(8.dp).size(20.dp), tint = MaterialTheme.colorScheme.primary)
                 }
                 Column {
                     Text(text = name, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
                     Text(text = subtitle, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
-
             Text(text = "৳ ${df.format(price)}", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
         }
     }
@@ -459,9 +549,7 @@ private fun PosDetailErrorContent(onRetry: () -> Unit) {
         Text("Failed to load order", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyLarge)
         Spacer(modifier = Modifier.height(16.dp))
         Button(onClick = onRetry, colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)) {
-            Icon(Icons.Outlined.Refresh, null, Modifier.size(18.dp))
-            Spacer(modifier = Modifier.width(8.dp))
-            Text("Retry")
+            Icon(Icons.Outlined.Refresh, null, Modifier.size(18.dp)); Spacer(modifier = Modifier.width(8.dp)); Text("Retry")
         }
     }
 }
@@ -474,21 +562,9 @@ private fun PosToast(message: String, isError: Boolean, modifier: Modifier = Mod
         color = if (isError) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.tertiaryContainer,
         shadowElevation = 8.dp
     ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Icon(
-                imageVector = if (isError) Icons.Default.Error else Icons.Default.CheckCircle,
-                contentDescription = null,
-                tint = if (isError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.tertiary
-            )
-            Text(
-                text = message,
-                style = MaterialTheme.typography.bodyMedium,
-                color = if (isError) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onTertiaryContainer
-            )
+        Row(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Icon(imageVector = if (isError) Icons.Default.Error else Icons.Default.CheckCircle, contentDescription = null, tint = if (isError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.tertiary)
+            Text(text = message, style = MaterialTheme.typography.bodyMedium, color = if (isError) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onTertiaryContainer)
         }
     }
 }

@@ -25,6 +25,23 @@ enum class DiscountType {
     AMOUNT
 }
 
+@Serializable
+enum class PaymentMethod {
+    CASH,
+    CREDIT_CARD,
+    BKASH,
+    ROCKET,
+    NAGAD;
+
+    val displayName: String get() = when (this) {
+        CASH -> "Cash"
+        CREDIT_CARD -> "Credit Card"
+        BKASH -> "bKash"
+        ROCKET -> "Rocket"
+        NAGAD -> "Nagad"
+    }
+}
+
 // Note: Use QuantityUnit from BeverageModels.kt for liquid units
 
 // ==================== Response Models ====================
@@ -39,6 +56,7 @@ data class FoodOrderShortInfo(
     val waiterId: Long? = null,
     val totalAmount: Double = 0.0,
     val orderStatus: OrderStatus,
+    val paymentMethod: PaymentMethod? = null,
     val tableId: Long? = null,
     val tableNumber: Int = 0,
     val createdDateTime: String? = null
@@ -55,6 +73,7 @@ data class FoodOrderByCustomer(
     val tableNumber: Int = 0,
     val tableId: Long? = null,
     val orderStatus: OrderStatus,
+    val paymentMethod: PaymentMethod? = null,
     val foodOrders: List<FoodOrder> = emptyList(),
     val beverageOrders: List<BeverageOrder> = emptyList(),
     val discountType: DiscountType? = null,
@@ -108,7 +127,8 @@ data class FoodOrderByCustomerRequest(
     val beverageOrders: List<BeverageOrderRequest> = emptyList(),
     val discountType: DiscountType = DiscountType.PERCENTAGE,
     val discount: Double = 0.0,
-    val tableId: Long
+    val tableId: Long,
+    val paymentMethod: PaymentMethod? = null
 )
 
 /**

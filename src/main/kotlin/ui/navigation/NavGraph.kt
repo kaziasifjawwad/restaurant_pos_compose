@@ -507,7 +507,7 @@ fun ReportNavigationHost() {
     
     when (val destination = currentDestination) {
         is ReportDestination.List -> {
-            ui.screens.report.PosReportScreen(
+            ui.screens.report.PosReportPaymentFilterScreen(
                 onNavigateToDetail = { orderId ->
                     println("[NavGraph] Report: Navigate from List to Detail: orderId=$orderId")
                     currentDestination = ReportDestination.Detail(orderId)

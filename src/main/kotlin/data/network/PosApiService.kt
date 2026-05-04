@@ -61,11 +61,11 @@ class PosApiService(
     // ==================== Create/Update ====================
 
     /**
-     * Create a new order
+     * Create a new order. Payment method is not sent here; it is selected only during paid completion.
      * POST /pos
      */
     suspend fun createOrder(request: FoodOrderByCustomerRequest): Result<FoodOrderShortInfo> {
-        println("[$TAG] createOrder: tableId=${request.tableId}, waiterId=${request.waiterId}, paymentMethod=${request.paymentMethod}")
+        println("[$TAG] createOrder: tableId=${request.tableId}, waiterId=${request.waiterId}")
         return executeRequest {
             val token = requireToken()
             val response: HttpResponse = client.post("$baseUrl/pos") {
@@ -79,11 +79,11 @@ class PosApiService(
     }
 
     /**
-     * Update an existing order
+     * Update an existing order. Payment method is not sent here; it is selected only during paid completion.
      * PUT /pos/{id}
      */
     suspend fun updateOrder(id: Long, request: FoodOrderByCustomerRequest): Result<FoodOrderShortInfo> {
-        println("[$TAG] updateOrder: id=$id, paymentMethod=${request.paymentMethod}")
+        println("[$TAG] updateOrder: id=$id, tableId=${request.tableId}, waiterId=${request.waiterId}")
         return executeRequest {
             val token = requireToken()
             val response: HttpResponse = client.put("$baseUrl/pos/$id") {
@@ -121,7 +121,8 @@ class PosApiService(
     }
 
     /**
-     * Set order status to PAID or CANCELED
+     * Set order status to PAID or CANCELED.
+     * Payment method is sent only for PAID; cancel never sends payment method.
      * PUT /pos/paid-or-cancel/{id}?orderStatus=...&paymentMethod=...
      */
     suspend fun setPaidOrCancel(
@@ -140,7 +141,7 @@ class PosApiService(
                 accept(ContentType.Application.Json)
                 url {
                     parameters.append("orderStatus", status.name)
-                    if (paymentMethod != null) {
+                    if (status == OrderStatus.PAID && paymentMethod != null) {
                         parameters.append("paymentMethod", paymentMethod.name)
                     }
                 }

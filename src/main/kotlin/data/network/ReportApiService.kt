@@ -47,8 +47,6 @@ class ReportApiService {
         dateFrom: String? = null,
         dateTo: String? = null,
         waiterId: String? = null,
-        amountFrom: String? = null,
-        amountTo: String? = null,
         orderStatus: String? = null,
         paymentMethod: String? = null
     ): PosReportDashboardResponse {
@@ -62,8 +60,6 @@ class ReportApiService {
                 if (!dateFrom.isNullOrBlank()) parameter("dateFrom", dateFrom)
                 if (!dateTo.isNullOrBlank()) parameter("dateTo", dateTo)
                 if (!waiterId.isNullOrBlank()) parameter("waiterId", waiterId)
-                if (!amountFrom.isNullOrBlank()) parameter("amountFrom", amountFrom)
-                if (!amountTo.isNullOrBlank()) parameter("amountTo", amountTo)
                 if (!orderStatus.isNullOrBlank()) parameter("orderStatus", orderStatus)
                 if (!paymentMethod.isNullOrBlank()) parameter("paymentMethod", paymentMethod)
             }.body()

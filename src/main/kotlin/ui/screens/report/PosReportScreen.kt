@@ -112,13 +112,14 @@ fun PosReportScreen(
     var successMessage by remember { mutableStateOf<String?>(null) }
     var isDownloading by remember { mutableStateOf(false) }
 
-    fun loadReports() {
+    fun loadReports(pageOverride: Int? = null) {
         scope.launch {
+            val targetPage = pageOverride ?: currentPage
             isLoading = true
             errorMessage = null
             try {
                 val response = api.getPosReports(
-                    page = currentPage,
+                    page = targetPage,
                     size = pageSize,
                     dateFrom = toIsoStart(dateFrom),
                     dateTo = toIsoEnd(dateTo),
@@ -141,6 +142,22 @@ fun PosReportScreen(
 
     LaunchedEffect(currentPage, pageSize) {
         loadReports()
+    }
+
+    fun applyFilters() {
+        currentPage = 0
+        loadReports(pageOverride = 0)
+    }
+
+    fun resetFilters() {
+        dateFrom = ""
+        dateTo = ""
+        waiterId = ""
+        amountFrom = ""
+        amountTo = ""
+        selectedStatus = "ALL"
+        currentPage = 0
+        loadReports(pageOverride = 0)
     }
 
     fun downloadPdf() {
@@ -191,7 +208,7 @@ fun PosReportScreen(
                         )
                     )
                 )
-                .padding(24.dp)
+                .padding(20.dp)
         ) {
             FilterPanel(
                 dateFrom = dateFrom,
@@ -208,29 +225,15 @@ fun PosReportScreen(
                 onStatusChange = {
                     selectedStatus = it
                     currentPage = 0
-                    loadReports()
+                    loadReports(pageOverride = 0)
                 },
-                onApply = {
-                    currentPage = 0
-                    loadReports()
-                },
-                onReset = {
-                    dateFrom = ""
-                    dateTo = ""
-                    waiterId = ""
-                    amountFrom = ""
-                    amountTo = ""
-                    selectedStatus = "ALL"
-                    currentPage = 0
-                    loadReports()
-                }
+                onApply = { applyFilters() },
+                onReset = { resetFilters() }
             )
 
-            Spacer(modifier = Modifier.height(18.dp))
-
+            Spacer(modifier = Modifier.height(14.dp))
             StatsRow(dashboard = dashboard)
-
-            Spacer(modifier = Modifier.height(18.dp))
+            Spacer(modifier = Modifier.height(14.dp))
 
             AnimatedVisibility(visible = errorMessage != null) {
                 ErrorCard(message = errorMessage ?: "", onDismiss = { errorMessage = null })
@@ -238,7 +241,7 @@ fun PosReportScreen(
             AnimatedVisibility(visible = successMessage != null) {
                 SuccessCard(message = successMessage ?: "", onDismiss = { successMessage = null })
             }
-            if (errorMessage != null || successMessage != null) Spacer(modifier = Modifier.height(14.dp))
+            if (errorMessage != null || successMessage != null) Spacer(modifier = Modifier.height(12.dp))
 
             TransactionHistoryCard(
                 reports = reports,
@@ -266,7 +269,7 @@ private fun ReportTopBar(
 ) {
     Surface(modifier = Modifier.fillMaxWidth(), color = MaterialTheme.colorScheme.surface, shadowElevation = 4.dp) {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 16.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 14.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
@@ -319,29 +322,59 @@ private fun FilterPanel(
 ) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(18.dp),
+        shape = RoundedCornerShape(16.dp),
         color = MaterialTheme.colorScheme.surface,
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.14f)),
         shadowElevation = 1.dp
     ) {
-        Column(modifier = Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text("FILTER DATA", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Black, color = Goldenrod)
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                OutlinedTextField(value = dateFrom, onValueChange = onDateFromChange, label = { Text("From date") }, placeholder = { Text("yyyy-MM-dd") }, modifier = Modifier.weight(1f), singleLine = true)
-                OutlinedTextField(value = dateTo, onValueChange = onDateToChange, label = { Text("To date") }, placeholder = { Text("yyyy-MM-dd") }, modifier = Modifier.weight(1f), singleLine = true)
-                OutlinedTextField(value = waiterId, onValueChange = onWaiterIdChange, label = { Text("Waiter ID") }, placeholder = { Text("All") }, modifier = Modifier.weight(1f), singleLine = true)
-                StatusFilter(selectedStatus = selectedStatus, onStatusChange = onStatusChange, modifier = Modifier.weight(1f))
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                "FILTER",
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.Black,
+                color = Goldenrod,
+                modifier = Modifier.width(54.dp)
+            )
+            CompactTextField(dateFrom, onDateFromChange, "From", Modifier.weight(0.95f))
+            CompactTextField(dateTo, onDateToChange, "To", Modifier.weight(0.95f))
+            CompactTextField(waiterId, onWaiterIdChange, "Waiter", Modifier.weight(0.85f))
+            CompactTextField(amountFrom, onAmountFromChange, "৳ From", Modifier.weight(0.85f))
+            CompactTextField(amountTo, onAmountToChange, "৳ To", Modifier.weight(0.85f))
+            StatusFilter(selectedStatus = selectedStatus, onStatusChange = onStatusChange, modifier = Modifier.weight(1f))
+            OutlinedButton(onClick = onReset, modifier = Modifier.height(44.dp), contentPadding = PaddingValues(horizontal = 14.dp, vertical = 0.dp)) {
+                Text("Reset")
             }
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                OutlinedTextField(value = amountFrom, onValueChange = onAmountFromChange, label = { Text("Amount from") }, placeholder = { Text("0") }, modifier = Modifier.weight(1f), singleLine = true)
-                OutlinedTextField(value = amountTo, onValueChange = onAmountToChange, label = { Text("Amount to") }, placeholder = { Text("Any") }, modifier = Modifier.weight(1f), singleLine = true)
-                OutlinedButton(onClick = onReset, modifier = Modifier.height(56.dp)) { Text("Reset") }
-                Button(onClick = onApply, modifier = Modifier.height(56.dp), colors = ButtonDefaults.buttonColors(containerColor = Goldenrod, contentColor = Color(0xFF111827))) {
-                    Text("Apply Filter", fontWeight = FontWeight.Bold)
-                }
+            Button(
+                onClick = onApply,
+                modifier = Modifier.height(44.dp),
+                contentPadding = PaddingValues(horizontal = 18.dp, vertical = 0.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Goldenrod, contentColor = Color(0xFF111827))
+            ) {
+                Text("Apply", fontWeight = FontWeight.Bold)
             }
         }
     }
+}
+
+@Composable
+private fun CompactTextField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    placeholder: String,
+    modifier: Modifier = Modifier
+) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValueChange,
+        placeholder = { Text(placeholder) },
+        modifier = modifier.height(44.dp),
+        singleLine = true,
+        textStyle = MaterialTheme.typography.bodySmall
+    )
 }
 
 @Composable
@@ -349,9 +382,14 @@ private fun StatusFilter(selectedStatus: String, onStatusChange: (String) -> Uni
     var expanded by remember { mutableStateOf(false) }
     val statuses = listOf("ALL", "PAID", "CANCELED", "BILL_PRINTED", "ORDER_PLACED")
     Box(modifier = modifier) {
-        OutlinedButton(onClick = { expanded = true }, modifier = Modifier.fillMaxWidth().height(56.dp), shape = RoundedCornerShape(4.dp)) {
-            Text(if (selectedStatus == "ALL") "All Status" else selectedStatus, modifier = Modifier.weight(1f))
-            Icon(if (expanded) Icons.Filled.ArrowDropUp else Icons.Filled.ArrowDropDown, contentDescription = null)
+        OutlinedButton(
+            onClick = { expanded = true },
+            modifier = Modifier.fillMaxWidth().height(44.dp),
+            shape = RoundedCornerShape(8.dp),
+            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp)
+        ) {
+            Text(if (selectedStatus == "ALL") "All Status" else selectedStatus, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
+            Icon(if (expanded) Icons.Filled.ArrowDropUp else Icons.Filled.ArrowDropDown, contentDescription = null, modifier = Modifier.size(18.dp))
         }
         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
             statuses.forEach { status ->
@@ -368,12 +406,12 @@ private fun StatusFilter(selectedStatus: String, onStatusChange: (String) -> Uni
 private fun StatsRow(dashboard: PosReportDashboardResponse?) {
     val totalSales = dashboard?.totalSales ?: 0.0
     val totalOrders = dashboard?.totalOrders ?: 0
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
             StatCard("Total Sales", taka(totalSales), Icons.Filled.Assessment, Goldenrod, Modifier.weight(1f))
             StatCard("Total Orders", totalOrders.toString(), Icons.Filled.Receipt, MaterialTheme.colorScheme.primary, Modifier.weight(1f))
         }
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             MiniPaymentCard("Cash", dashboard?.cashTotal ?: 0.0, Icons.Outlined.Payments, Goldenrod, Modifier.weight(1f))
             MiniPaymentCard("Card", dashboard?.cardTotal ?: 0.0, Icons.Outlined.CreditCard, Color(0xFF38BDF8), Modifier.weight(1f))
             MiniPaymentCard("bKash", dashboard?.bkashTotal ?: 0.0, Icons.Outlined.ReceiptLong, BkashPink, Modifier.weight(1f))
@@ -385,15 +423,15 @@ private fun StatsRow(dashboard: PosReportDashboardResponse?) {
 
 @Composable
 private fun StatCard(title: String, value: String, icon: ImageVector, color: Color, modifier: Modifier = Modifier) {
-    Card(modifier = modifier, shape = RoundedCornerShape(18.dp), colors = CardDefaults.cardColors(containerColor = color.copy(alpha = 0.10f))) {
-        Row(modifier = Modifier.fillMaxWidth().padding(20.dp), verticalAlignment = Alignment.CenterVertically) {
+    Card(modifier = modifier, shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = color.copy(alpha = 0.10f))) {
+        Row(modifier = Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
             Surface(shape = CircleShape, color = color.copy(alpha = 0.18f)) {
-                Icon(icon, contentDescription = null, modifier = Modifier.padding(12.dp).size(24.dp), tint = color)
+                Icon(icon, contentDescription = null, modifier = Modifier.padding(10.dp).size(22.dp), tint = color)
             }
-            Spacer(modifier = Modifier.width(16.dp))
+            Spacer(modifier = Modifier.width(14.dp))
             Column {
                 Text(title.uppercase(), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.Bold)
-                Text(value, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Black, color = color)
+                Text(value, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Black, color = color)
             }
         }
     }
@@ -401,12 +439,12 @@ private fun StatCard(title: String, value: String, icon: ImageVector, color: Col
 
 @Composable
 private fun MiniPaymentCard(title: String, amount: Double, icon: ImageVector, color: Color, modifier: Modifier = Modifier) {
-    Surface(modifier = modifier, shape = RoundedCornerShape(14.dp), color = MaterialTheme.colorScheme.surface, border = BorderStroke(1.dp, color.copy(alpha = 0.18f))) {
-        Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(20.dp))
+    Surface(modifier = modifier, shape = RoundedCornerShape(13.dp), color = MaterialTheme.colorScheme.surface, border = BorderStroke(1.dp, color.copy(alpha = 0.18f))) {
+        Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 9.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+            Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(18.dp))
             Column {
-                Text(title, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text(taka(amount), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                Text(title, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(taka(amount), style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
             }
         }
     }
@@ -427,7 +465,7 @@ private fun TransactionHistoryCard(
 ) {
     Card(modifier = modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface), elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)) {
         Column(modifier = Modifier.fillMaxSize()) {
-            Text("TRANSACTION HISTORY", modifier = Modifier.padding(horizontal = 20.dp, vertical = 18.dp), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black)
+            Text("TRANSACTION HISTORY", modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black)
             HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.14f))
             TableHeader()
             HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.14f))
@@ -509,7 +547,7 @@ private fun StatusChip(status: String, modifier: Modifier = Modifier) {
 
 @Composable
 private fun PaginationBar(currentPage: Int, totalPages: Int, pageSize: Int, totalElements: Int, onPageChange: (Int) -> Unit, onPageSizeChange: (Int) -> Unit) {
-    Row(modifier = Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+    Row(modifier = Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("Show", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(modifier = Modifier.width(8.dp))

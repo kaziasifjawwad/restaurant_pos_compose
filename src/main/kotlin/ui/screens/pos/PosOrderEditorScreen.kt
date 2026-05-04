@@ -210,7 +210,7 @@ fun PosOrderEditorScreen(
                 updatedFoodOrders.map {
                     if (it.itemNumber == entry.itemNumber && it.actualFoodSize == entry.actualFoodSize) {
                         it.copy(
-                            quantity = it.quantity + entry.quantity,
+                            quantity = entry.quantity,
                             requestedFoodSize = entry.requestedFoodSize
                         )
                     } else {

@@ -28,6 +28,7 @@ import androidx.compose.material.icons.filled.LastPage
 import androidx.compose.material.icons.filled.PictureAsPdf
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.CreditCard
 import androidx.compose.material.icons.outlined.Payments
 import androidx.compose.material.icons.outlined.ReceiptLong
@@ -36,17 +37,23 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TimePicker
+import androidx.compose.material3.rememberDatePickerState
+import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -61,6 +68,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
 import data.model.PosReportDashboardResponse
 import data.model.PosReportResponse
 import data.model.PosReportWaiterResponse
@@ -81,16 +89,6 @@ private val PosReportBkash = Color(0xFFE2136E)
 private val PosReportRocket = Color(0xFF7B1FA2)
 private val PosReportNagad = Color(0xFFF97316)
 private val PosReportCard = Color(0xFF38BDF8)
-
-private val PosReportTimeOptions = listOf(
-    "",
-    "00:00", "00:30", "01:00", "01:30", "02:00", "02:30", "03:00", "03:30",
-    "04:00", "04:30", "05:00", "05:30", "06:00", "06:30", "07:00", "07:30",
-    "08:00", "08:30", "09:00", "09:30", "10:00", "10:30", "11:00", "11:30",
-    "12:00", "12:30", "13:00", "13:30", "14:00", "14:30", "15:00", "15:30",
-    "16:00", "16:30", "17:00", "17:30", "18:00", "18:30", "19:00", "19:30",
-    "20:00", "20:30", "21:00", "21:30", "22:00", "22:30", "23:00", "23:30"
-)
 
 @Composable
 fun PosReportPaymentFilterScreen(
@@ -334,13 +332,162 @@ private fun PosReportHeader(
                     if (isDownloading) CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
                     else Icon(Icons.Filled.PictureAsPdf, contentDescription = null)
                     Spacer(Modifier.width(8.dp))
-                    Text(if (isDownloading) "Downloading..." else "Download PDF", fontWeight = FontWeight.Bold)
+                    Text(
+                        text = if (isDownloading) "Downloading..." else "Download PDF",
+                        fontWeight = FontWeight.Bold
+                    )
                 }
             }
         }
     }
 }
 
+// ---------------------------------------------------------------------------
+// Date & Time Picker
+// ---------------------------------------------------------------------------
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun PosReportDateTimePickerField(
+    dateValue: String,
+    timeValue: String,
+    onDateTimeChange: (String, String) -> Unit,
+    placeholder: String,
+    modifier: Modifier = Modifier
+) {
+    var showDatePicker by remember { mutableStateOf(false) }
+    var showTimePicker by remember { mutableStateOf(false) }
+    var tempDate by remember { mutableStateOf("") }
+
+    val datePickerState = rememberDatePickerState()
+    val timePickerState = rememberTimePickerState(is24Hour = false)
+
+    OutlinedButton(
+        onClick = { showDatePicker = true },
+        modifier = modifier.height(44.dp),
+        shape = RoundedCornerShape(8.dp),
+        contentPadding = PaddingValues(horizontal = 12.dp)
+    ) {
+        Icon(Icons.Outlined.CalendarMonth, contentDescription = null, modifier = Modifier.size(18.dp), tint = PosReportGold)
+        Spacer(Modifier.width(8.dp))
+
+        // Create a pretty display text "2026-05-04, 01:30 PM"
+        val displayText = if (dateValue.isNotBlank()) {
+            if (timeValue.isNotBlank()) {
+                val timeObj = LocalTime.parse(timeValue, DateTimeFormatter.ofPattern("HH:mm"))
+                val formatted12Hour = timeObj.format(DateTimeFormatter.ofPattern("hh:mm a"))
+                "$dateValue, $formatted12Hour"
+            } else {
+                "$dateValue (All Day)"
+            }
+        } else {
+            placeholder
+        }
+
+        Text(
+            text = displayText,
+            color = if (dateValue.isBlank()) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
+            style = MaterialTheme.typography.bodyMedium,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f)
+        )
+    }
+
+    if (showDatePicker) {
+        DatePickerDialog(
+            onDismissRequest = { showDatePicker = false },
+            confirmButton = {
+                Button(onClick = {
+                    datePickerState.selectedDateMillis?.let { millis ->
+                        val date = java.time.Instant.ofEpochMilli(millis).atZone(java.time.ZoneId.of("UTC")).toLocalDate()
+                        tempDate = date.toString()
+                        showDatePicker = false
+                        showTimePicker = true // Automatically open time picker next
+                    }
+                }) {
+                    Text("Next")
+                }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { showDatePicker = false }) {
+                    Text("Cancel")
+                }
+            }
+        ) {
+            DatePicker(state = datePickerState)
+        }
+    }
+
+    if (showTimePicker) {
+        Dialog(onDismissRequest = { showTimePicker = false }) {
+            Surface(
+                shape = RoundedCornerShape(24.dp),
+                color = MaterialTheme.colorScheme.surface,
+                tonalElevation = 6.dp
+            ) {
+                Column(
+                    modifier = Modifier.padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = "Select Time (Optional)",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 20.dp)
+                    )
+
+                    TimePicker(
+                        state = timePickerState,
+                        colors = androidx.compose.material3.TimePickerDefaults.colors(
+                            // This fixes the ugly black circle on the dial
+                            selectorColor = PosReportGold,
+
+                            // This makes the text inside the gold circle dark so you can read it
+                            clockDialSelectedContentColor = Color(0xFF111827),
+
+                            // (Optional Polish) This makes the active Hour/Minute box lightly tinted gold
+                            timeSelectorSelectedContainerColor = PosReportGold.copy(alpha = 0.15f),
+
+                            // (Optional Polish) This makes the active text gold
+                            timeSelectorSelectedContentColor = PosReportGold
+                        )
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(top = 24.dp),
+                        horizontalArrangement = Arrangement.End,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        TextButton(
+                            onClick = {
+                                onDateTimeChange(tempDate, "") // Submit Date, Leave Time Blank
+                                showTimePicker = false
+                            }
+                        ) {
+                            Text("Skip Time", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Button(
+                            onClick = {
+                                val time = LocalTime.of(timePickerState.hour, timePickerState.minute)
+                                val formattedTime = time.format(DateTimeFormatter.ofPattern("HH:mm"))
+                                onDateTimeChange(tempDate, formattedTime) // Submit Date AND Time
+                                showTimePicker = false
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = PosReportGold, contentColor = Color(0xFF111827))
+                        ) {
+                            Text("Confirm Time", fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Filter Panel
+// ---------------------------------------------------------------------------
 @Composable
 private fun PosReportFilterPanel(
     fromDate: String,
@@ -368,73 +515,70 @@ private fun PosReportFilterPanel(
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.16f)),
         shadowElevation = 1.dp
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(14.dp),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-            verticalAlignment = Alignment.CenterVertically
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Text("FILTER", modifier = Modifier.width(54.dp), fontWeight = FontWeight.Black, color = PosReportGold)
-            PosReportDateTimePicker(
-                title = "From",
-                date = fromDate,
-                onDateChange = onFromDateChange,
-                time = fromTime,
-                onTimeChange = onFromTimeChange,
-                timeHint = "Start of day",
-                modifier = Modifier.weight(1.35f)
-            )
-            PosReportDateTimePicker(
-                title = "To",
-                date = toDate,
-                onDateChange = onToDateChange,
-                time = toTime,
-                onTimeChange = onToTimeChange,
-                timeHint = "End of day",
-                modifier = Modifier.weight(1.35f)
-            )
-            PosReportWaiterFilter(waiterId, onWaiterIdChange, waiters, Modifier.weight(1.15f))
-            PosReportStatusFilter(selectedStatus, onStatusChange, Modifier.weight(0.85f))
-            PosReportPaymentMethodFilter(selectedPaymentMethod, onPaymentMethodChange, Modifier.weight(1f))
-            OutlinedButton(onClick = onReset, modifier = Modifier.height(44.dp), contentPadding = PaddingValues(horizontal = 14.dp)) {
-                Text("Reset")
-            }
-            Button(
-                onClick = onApply,
-                modifier = Modifier.height(44.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = PosReportGold, contentColor = Color(0xFF111827)),
-                contentPadding = PaddingValues(horizontal = 18.dp)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("Apply", fontWeight = FontWeight.Bold)
+                Text("DATE RANGE:", fontWeight = FontWeight.Black, color = PosReportGold, modifier = Modifier.padding(end = 8.dp))
+
+                PosReportDateTimePickerField(
+                    dateValue = fromDate,
+                    timeValue = fromTime,
+                    onDateTimeChange = { d, t ->
+                        onFromDateChange(d)
+                        onFromTimeChange(t)
+                    },
+                    placeholder = "Start Date & Time",
+                    modifier = Modifier.weight(1f)
+                )
+
+                Text("to", modifier = Modifier.padding(horizontal = 4.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
+
+                PosReportDateTimePickerField(
+                    dateValue = toDate,
+                    timeValue = toTime,
+                    onDateTimeChange = { d, t ->
+                        onToDateChange(d)
+                        onToTimeChange(t)
+                    },
+                    placeholder = "End Date & Time",
+                    modifier = Modifier.weight(1f)
+                )
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                PosReportWaiterFilter(waiterId, onWaiterIdChange, waiters, Modifier.weight(1.2f))
+                PosReportStatusFilter(selectedStatus, onStatusChange, Modifier.weight(1f))
+                PosReportPaymentMethodFilter(selectedPaymentMethod, onPaymentMethodChange, Modifier.weight(1f))
+
+                Spacer(modifier = Modifier.weight(0.1f))
+
+                OutlinedButton(
+                    onClick = onReset,
+                    modifier = Modifier.height(44.dp),
+                    contentPadding = PaddingValues(horizontal = 16.dp)
+                ) {
+                    Text("Reset")
+                }
+                Button(
+                    onClick = onApply,
+                    modifier = Modifier.height(44.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = PosReportGold, contentColor = Color(0xFF111827)),
+                    contentPadding = PaddingValues(horizontal = 24.dp)
+                ) {
+                    Text("Apply", fontWeight = FontWeight.Bold)
+                }
             }
         }
-    }
-}
-
-@Composable
-private fun PosReportDateTimePicker(
-    title: String,
-    date: String,
-    onDateChange: (String) -> Unit,
-    time: String,
-    onTimeChange: (String) -> Unit,
-    timeHint: String,
-    modifier: Modifier
-) {
-    Row(modifier = modifier, horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-        OutlinedTextField(
-            value = date,
-            onValueChange = onDateChange,
-            placeholder = { Text("$title date") },
-            modifier = Modifier.weight(1.05f).height(44.dp),
-            singleLine = true,
-            textStyle = MaterialTheme.typography.bodySmall
-        )
-        PosReportDropdown(
-            value = time.ifBlank { timeHint },
-            options = PosReportTimeOptions.map { it to if (it.isBlank()) timeHint else it },
-            onSelect = onTimeChange,
-            modifier = Modifier.weight(0.95f)
-        )
     }
 }
 
@@ -614,12 +758,20 @@ private fun PosReportHeaderText(text: String, modifier: Modifier) {
     Text(text, modifier = modifier, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
 }
 
+// ---------------------------------------------------------------------------
+// FIXED: Table Row Payment Logic -> Handles canceled/null accurately
+// ---------------------------------------------------------------------------
 @Composable
 private fun PosReportRow(report: PosReportResponse, onClick: () -> Unit) {
     Row(modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 20.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
         Text(report.waiterName, modifier = Modifier.weight(1.55f), maxLines = 1, overflow = TextOverflow.Ellipsis)
         Text("Table ${report.tableNumber}", modifier = Modifier.weight(0.65f))
-        Text(posReportPaymentDisplay(report.paymentMethod ?: ""), modifier = Modifier.weight(1.0f), color = PosReportGold, fontWeight = FontWeight.Bold)
+
+        // Handles "N/A" with a grayed-out color
+        val paymentText = posReportPaymentDisplay(report.paymentMethod)
+        val paymentColor = if (paymentText == "N/A") MaterialTheme.colorScheme.onSurfaceVariant else PosReportGold
+        Text(paymentText, modifier = Modifier.weight(1.0f), color = paymentColor, fontWeight = FontWeight.Bold)
+
         Text(report.orderStatus, modifier = Modifier.weight(0.85f), color = if (report.orderStatus == "PAID") PosReportGreen else MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
         Text(posReportTaka(report.totalAmount), modifier = Modifier.weight(0.95f), fontWeight = FontWeight.Bold)
         Text(posReportDateTime(report.createdDateTime), modifier = Modifier.weight(1.45f), color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -665,12 +817,15 @@ private fun PosReportPageSizeSelector(pageSize: Int, onPageSizeChange: (Int) -> 
     )
 }
 
+// ---------------------------------------------------------------------------
+// LOGIC: Core helper functions
+// ---------------------------------------------------------------------------
 private fun posReportIsoBoundary(dateValue: String, timeValue: String, isStart: Boolean): String? {
     if (dateValue.isBlank()) return null
     return runCatching {
         val date = LocalDate.parse(dateValue.trim())
         val time = if (timeValue.isBlank()) {
-            if (isStart) LocalTime.MIN else LocalTime.MAX
+            if (isStart) LocalTime.MIN else LocalTime.MAX // MIN = 00:00:00, MAX = 23:59:59.999
         } else {
             LocalTime.parse(timeValue.trim())
         }
@@ -682,7 +837,7 @@ private fun posReportIsoBoundary(dateValue: String, timeValue: String, isStart: 
 private fun posReportTaka(amount: Double): String = "৳ ${"%,.2f".format(amount)}"
 
 private fun posReportDateTime(value: String): String = runCatching {
-    OffsetDateTime.parse(value).format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"))
+    OffsetDateTime.parse(value).format(DateTimeFormatter.ofPattern("yyyy-MM-dd hh:mm a"))
 }.getOrDefault(value)
 
 private fun posReportPageInfo(currentPage: Int, pageSize: Int, totalElements: Int): String {
@@ -692,17 +847,23 @@ private fun posReportPageInfo(currentPage: Int, pageSize: Int, totalElements: In
     return "$from-$to of $totalElements"
 }
 
-private fun posReportStatusDisplay(status: String): String = when (status) {
+// FIXED: Handles null/empty correctly for Table while preserving filter logic
+private fun posReportStatusDisplay(status: String?): String = when (status) {
     "PAID" -> "Paid"
     "CANCELED" -> "Canceled"
-    else -> "All Status"
+    "ALL" -> "All Status"
+    null, "" -> "Unknown"
+    else -> status
 }
 
-private fun posReportPaymentDisplay(paymentMethod: String): String = when (paymentMethod) {
+// FIXED: Explicitly checks for null/empty to show "N/A" on the Table rows
+private fun posReportPaymentDisplay(paymentMethod: String?): String = when (paymentMethod) {
     "CASH" -> "Cash"
     "BKASH" -> "bKash"
     "CREDIT_CARD" -> "Credit Card"
     "ROCKET" -> "Rocket"
     "NAGAD" -> "Nagad"
-    else -> "All Payments"
+    "ALL" -> "All Payments"
+    null, "" -> "N/A"
+    else -> paymentMethod
 }

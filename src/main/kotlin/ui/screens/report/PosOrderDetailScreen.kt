@@ -19,19 +19,14 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Error
-import androidx.compose.material.icons.filled.LocalDrink
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Print
-import androidx.compose.material.icons.filled.Restaurant
 import androidx.compose.material.icons.filled.TableRestaurant
 import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -58,8 +53,6 @@ import java.text.DecimalFormat
 
 private val Goldenrod = Color(0xFFD4AF37)
 private val PaidGreen = Color(0xFF16A34A)
-private val PaidGreenSoft = Color(0xFFEAF7ED)
-private val RefundRed = Color(0xFFDC2626)
 
 @Composable
 fun PosOrderDetailScreen(
@@ -129,47 +122,24 @@ private fun OrderDetailTopBar(
     ) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 14.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                IconButton(onClick = onNavigateBack) {
-                    Icon(Icons.Filled.ArrowBack, contentDescription = "Back", tint = Goldenrod)
-                }
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(
-                        "Order Details",
-                        style = MaterialTheme.typography.headlineSmall,
-                        fontWeight = FontWeight.Black,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Text(
-                        "Order #$orderId",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
+            IconButton(onClick = onNavigateBack) {
+                Icon(Icons.Filled.ArrowBack, contentDescription = "Back", tint = Goldenrod)
             }
-
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                OutlinedButton(
-                    onClick = { },
-                    shape = RoundedCornerShape(12.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.45f)),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Goldenrod)
-                ) {
-                    Icon(Icons.Filled.Print, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(8.dp))
-                    Text("Print", fontWeight = FontWeight.SemiBold)
-                }
-                OutlinedButton(
-                    onClick = { },
-                    shape = RoundedCornerShape(12.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, RefundRed.copy(alpha = 0.62f)),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = RefundRed)
-                ) {
-                    Text("Refund", fontWeight = FontWeight.SemiBold)
-                }
+            Spacer(Modifier.width(14.dp))
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(
+                    "Order Details",
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Black,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                    "Order #$orderId",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         }
     }
@@ -211,7 +181,6 @@ private fun ReceiptMetaBar(orderDetail: PosOrderDetailResponse) {
             label = "Status",
             value = buildStatusText(orderDetail),
             tint = PaidGreen,
-            success = true,
             modifier = Modifier.weight(1f)
         )
     }
@@ -223,30 +192,26 @@ private fun MetaInfoCard(
     label: String,
     value: String,
     tint: Color,
-    modifier: Modifier = Modifier,
-    success: Boolean = false
+    modifier: Modifier = Modifier
 ) {
-    val container = if (success) PaidGreen.copy(alpha = 0.14f) else MaterialTheme.colorScheme.surface
-    val valueColor = if (success) PaidGreen else MaterialTheme.colorScheme.onSurface
-
     Surface(
         modifier = modifier,
         shape = RoundedCornerShape(18.dp),
-        color = container,
+        color = MaterialTheme.colorScheme.surface,
         shadowElevation = 1.dp,
-        border = androidx.compose.foundation.BorderStroke(1.dp, tint.copy(alpha = if (success) 0.30f else 0.16f))
+        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.16f))
     ) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(18.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            Surface(shape = RoundedCornerShape(12.dp), color = tint.copy(alpha = 0.16f)) {
+            Surface(shape = RoundedCornerShape(12.dp), color = tint.copy(alpha = 0.14f)) {
                 Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.padding(10.dp).size(24.dp))
             }
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text(value, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = valueColor)
+                Text(value, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
             }
         }
     }

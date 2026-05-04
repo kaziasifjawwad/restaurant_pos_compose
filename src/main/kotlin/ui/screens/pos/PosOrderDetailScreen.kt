@@ -11,6 +11,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
@@ -48,7 +49,6 @@ fun PosOrderDetailScreen(
         isContentVisible = true
     }
 
-    // Handle success messages that should navigate back
     LaunchedEffect(uiState.successMessage) {
         if (uiState.successMessage != null && uiState.selectedOrder == null) {
             delay(1000)
@@ -70,7 +70,6 @@ fun PosOrderDetailScreen(
             )
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
-            // Header
             PosDetailHeader(
                 order = uiState.selectedOrder,
                 onBack = {
@@ -80,6 +79,7 @@ fun PosOrderDetailScreen(
                 onEdit = { onNavigateToEdit(orderId) }
             )
 
+            val isClosingAfterSuccessfulAction = uiState.successMessage != null && uiState.selectedOrder == null
             when {
                 uiState.isLoadingDetail -> PosDetailLoadingContent()
                 uiState.selectedOrder != null -> {
@@ -87,75 +87,51 @@ fun PosOrderDetailScreen(
                         visible = isContentVisible,
                         enter = fadeIn(animationSpec = tween(AppAnimations.DURATION_ENTRANCE))
                     ) {
-                        PosDetailContent(
-                            order = uiState.selectedOrder!!,
-                            viewModel = viewModel
-                        )
+                        PosDetailContent(order = uiState.selectedOrder!!, viewModel = viewModel)
                     }
                 }
+                isClosingAfterSuccessfulAction -> PosDetailClosingContent()
                 else -> PosDetailErrorContent(onRetry = { viewModel.onEvent(PosUiEvent.LoadOrderDetail(orderId)) })
             }
         }
 
-        // Error Toast
         AnimatedVisibility(
             visible = uiState.errorMessage != null,
             enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
             exit = slideOutVertically(targetOffsetY = { it }) + fadeOut(),
             modifier = Modifier.align(Alignment.BottomCenter)
         ) {
-            PosToast(
-                message = uiState.errorMessage ?: "",
-                isError = true,
-                modifier = Modifier.padding(16.dp)
-            )
+            PosToast(message = uiState.errorMessage ?: "", isError = true, modifier = Modifier.padding(16.dp))
         }
 
-        // Success Toast
         AnimatedVisibility(
             visible = uiState.successMessage != null,
             enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
             exit = slideOutVertically(targetOffsetY = { it }) + fadeOut(),
             modifier = Modifier.align(Alignment.BottomCenter)
         ) {
-            PosToast(
-                message = uiState.successMessage ?: "",
-                isError = false,
-                modifier = Modifier.padding(16.dp)
-            )
+            PosToast(message = uiState.successMessage ?: "", isError = false, modifier = Modifier.padding(16.dp))
         }
     }
 }
 
 @Composable
-private fun PosDetailHeader(
-    order: FoodOrderByCustomer?,
-    onBack: () -> Unit,
-    onEdit: () -> Unit
-) {
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        color = MaterialTheme.colorScheme.surface,
-        shadowElevation = 4.dp
-    ) {
+private fun PosDetailHeader(order: FoodOrderByCustomer?, onBack: () -> Unit, onEdit: () -> Unit) {
+    Surface(modifier = Modifier.fillMaxWidth(), color = MaterialTheme.colorScheme.surface, shadowElevation = 4.dp) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = onBack) {
                     Icon(
-                        imageVector = Icons.Default.ArrowBack,
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                         contentDescription = "Back",
                         tint = MaterialTheme.colorScheme.onSurface
                     )
                 }
-
                 Spacer(modifier = Modifier.width(12.dp))
-
                 Column {
                     Text(
                         text = order?.let { "Order #${it.id}" } ?: "Loading...",
@@ -163,11 +139,7 @@ private fun PosDetailHeader(
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface
                     )
-                    Text(
-                        text = "Order Details",
-                        style = ExtendedTypography.caption,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    Text("Order Details", style = ExtendedTypography.caption, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
 
@@ -181,9 +153,7 @@ private fun PosDetailHeader(
 
                 Button(
                     onClick = onEdit,
-                    modifier = Modifier
-                        .hoverable(interactionSource)
-                        .graphicsLayer { scaleX = scale; scaleY = scale },
+                    modifier = Modifier.hoverable(interactionSource).graphicsLayer { scaleX = scale; scaleY = scale },
                     shape = RoundedCornerShape(12.dp)
                 ) {
                     Icon(Icons.Outlined.Edit, contentDescription = null, modifier = Modifier.size(18.dp))
@@ -196,10 +166,7 @@ private fun PosDetailHeader(
 }
 
 @Composable
-private fun PosDetailContent(
-    order: FoodOrderByCustomer,
-    viewModel: PosViewModel
-) {
+private fun PosDetailContent(order: FoodOrderByCustomer, viewModel: PosViewModel) {
     val df = remember { DecimalFormat("#,##0.00") }
 
     val statusColor = when (order.orderStatus) {
@@ -214,7 +181,6 @@ private fun PosDetailContent(
         verticalArrangement = Arrangement.spacedBy(20.dp),
         contentPadding = PaddingValues(vertical = 24.dp)
     ) {
-        // Order Info Card
         item {
             Card(
                 modifier = Modifier.fillMaxWidth(),
@@ -223,24 +189,14 @@ private fun PosDetailContent(
                 elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
             ) {
                 Column {
-                    // Status bar
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(4.dp)
-                            .background(statusColor)
-                    )
-
+                    Box(modifier = Modifier.fillMaxWidth().height(4.dp).background(statusColor))
                     Column(modifier = Modifier.padding(20.dp)) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Surface(
-                                shape = RoundedCornerShape(8.dp),
-                                color = MaterialTheme.colorScheme.primaryContainer
-                            ) {
+                            Surface(shape = RoundedCornerShape(8.dp), color = MaterialTheme.colorScheme.primaryContainer) {
                                 Text(
                                     text = "Table #${order.tableNumber}",
                                     style = MaterialTheme.typography.titleMedium,
@@ -250,10 +206,7 @@ private fun PosDetailContent(
                                 )
                             }
 
-                            Surface(
-                                shape = RoundedCornerShape(8.dp),
-                                color = statusColor.copy(alpha = 0.15f)
-                            ) {
+                            Surface(shape = RoundedCornerShape(8.dp), color = statusColor.copy(alpha = 0.15f)) {
                                 Text(
                                     text = order.orderStatus.displayName,
                                     style = MaterialTheme.typography.labelLarge,
@@ -270,24 +223,18 @@ private fun PosDetailContent(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceEvenly
                         ) {
+                            PosInfoItem(icon = Icons.Outlined.Person, label = "Waiter", value = order.waiterName ?: "Unknown")
+                            PosInfoItem(icon = Icons.Outlined.AttachMoney, label = "Total", value = "৳ ${df.format(order.totalAmount)}")
                             PosInfoItem(
-                                icon = Icons.Outlined.Person,
-                                label = "Waiter",
-                                value = order.waiterName ?: "Unknown"
-                            )
-                            PosInfoItem(
-                                icon = Icons.Outlined.AttachMoney,
-                                label = "Total",
-                                value = "৳ ${df.format(order.totalAmount)}"
+                                icon = Icons.Outlined.Payments,
+                                label = "Payment",
+                                value = order.paymentMethod?.displayName ?: "Not selected"
                             )
                             if (order.discount > 0) {
                                 PosInfoItem(
                                     icon = Icons.Outlined.Discount,
                                     label = "Discount",
-                                    value = if (order.discountType == DiscountType.PERCENTAGE)
-                                        "${df.format(order.discount)}%"
-                                    else
-                                        "৳ ${df.format(order.discount)}"
+                                    value = if (order.discountType == DiscountType.PERCENTAGE) "${df.format(order.discount)}%" else "৳ ${df.format(order.discount)}"
                                 )
                             }
                         }
@@ -296,15 +243,8 @@ private fun PosDetailContent(
             }
         }
 
-        // Action Buttons
-        item {
-            PosDetailActionButtons(
-                order = order,
-                viewModel = viewModel
-            )
-        }
+        item { PosDetailActionButtons(order = order, viewModel = viewModel) }
 
-        // Food Orders
         if (order.foodOrders.isNotEmpty()) {
             item {
                 Text(
@@ -314,8 +254,7 @@ private fun PosDetailContent(
                     color = MaterialTheme.colorScheme.onSurface
                 )
             }
-
-            itemsIndexed(order.foodOrders) { index, foodOrder ->
+            itemsIndexed(order.foodOrders) { _, foodOrder ->
                 PosOrderItemCard(
                     name = foodOrder.foodName ?: "Food #${foodOrder.itemNumber}",
                     subtitle = "${foodOrder.foodSize.name} × ${foodOrder.foodQuantity}",
@@ -326,7 +265,6 @@ private fun PosDetailContent(
             }
         }
 
-        // Beverage Orders
         if (order.beverageOrders.isNotEmpty()) {
             item {
                 Text(
@@ -336,8 +274,7 @@ private fun PosDetailContent(
                     color = MaterialTheme.colorScheme.onSurface
                 )
             }
-
-            itemsIndexed(order.beverageOrders) { index, bevOrder ->
+            itemsIndexed(order.beverageOrders) { _, bevOrder ->
                 PosOrderItemCard(
                     name = bevOrder.beverageName ?: "Beverage #${bevOrder.beverageId}",
                     subtitle = "${bevOrder.quantity} ${bevOrder.unit?.name ?: ""} × ${bevOrder.amount}",
@@ -353,16 +290,9 @@ private fun PosDetailContent(
 }
 
 @Composable
-private fun PosInfoItem(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    label: String,
-    value: String
-) {
+private fun PosInfoItem(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, value: String) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Surface(
-            shape = RoundedCornerShape(10.dp),
-            color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f)
-        ) {
+        Surface(shape = RoundedCornerShape(10.dp), color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f)) {
             Icon(
                 imageVector = icon,
                 contentDescription = null,
@@ -371,54 +301,22 @@ private fun PosInfoItem(
             )
         }
         Spacer(modifier = Modifier.height(8.dp))
-        Text(
-            text = value,
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onSurface
-        )
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
+        Text(text = value, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+        Text(text = label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
 @Composable
-private fun PosDetailActionButtons(
-    order: FoodOrderByCustomer,
-    viewModel: PosViewModel
-) {
-    val orderShort = FoodOrderShortInfo(
-        id = order.id,
-        waiterName = order.waiterName,
-        waiterId = order.waiterId,
-        totalAmount = order.totalAmount,
-        orderStatus = order.orderStatus,
-        tableId = order.tableId,
-        tableNumber = order.tableNumber
-    )
-
-    // Show buttons based on order status
+private fun PosDetailActionButtons(order: FoodOrderByCustomer, viewModel: PosViewModel) {
     when (order.orderStatus) {
         OrderStatus.ORDER_PLACED -> {
-            // Show Print Bill, Print Kitchen Memo, and Cancel
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
+            Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     Button(
                         onClick = { viewModel.onEvent(PosUiEvent.PrintBill(order.id)) },
                         modifier = Modifier.weight(1f),
                         shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.tertiary
-                        )
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.tertiary)
                     ) {
                         Icon(Icons.Outlined.Print, null, Modifier.size(18.dp))
                         Spacer(modifier = Modifier.width(8.dp))
@@ -429,9 +327,7 @@ private fun PosDetailActionButtons(
                         onClick = { viewModel.onEvent(PosUiEvent.PrintKitchenMemo(order.id)) },
                         modifier = Modifier.weight(1f),
                         shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.secondary
-                        )
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
                     ) {
                         Icon(Icons.Outlined.Restaurant, null, Modifier.size(18.dp))
                         Spacer(modifier = Modifier.width(8.dp))
@@ -439,17 +335,12 @@ private fun PosDetailActionButtons(
                     }
                 }
 
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     Button(
-                        onClick = { viewModel.onEvent(PosUiEvent.CompleteOrder(order.id)) },
+                        onClick = { viewModel.onEvent(PosUiEvent.CompleteOrder(order.id, order.paymentMethod)) },
                         modifier = Modifier.weight(1f),
                         shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.primary
-                        )
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
                     ) {
                         Icon(Icons.Outlined.CheckCircle, null, Modifier.size(18.dp))
                         Spacer(modifier = Modifier.width(8.dp))
@@ -460,9 +351,7 @@ private fun PosDetailActionButtons(
                         onClick = { viewModel.onEvent(PosUiEvent.CancelOrder(order.id)) },
                         modifier = Modifier.weight(1f),
                         shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.outlinedButtonColors(
-                            contentColor = MaterialTheme.colorScheme.error
-                        )
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)
                     ) {
                         Icon(Icons.Outlined.Cancel, null, Modifier.size(18.dp))
                         Spacer(modifier = Modifier.width(8.dp))
@@ -472,18 +361,12 @@ private fun PosDetailActionButtons(
             }
         }
         OrderStatus.BILL_PRINTED -> {
-            // Show Complete Order and Cancel
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Button(
-                    onClick = { viewModel.onEvent(PosUiEvent.CompleteOrder(order.id)) },
+                    onClick = { viewModel.onEvent(PosUiEvent.CompleteOrder(order.id, order.paymentMethod)) },
                     modifier = Modifier.weight(1f),
                     shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.primary
-                    )
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
                 ) {
                     Icon(Icons.Outlined.CheckCircle, null, Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(8.dp))
@@ -494,9 +377,7 @@ private fun PosDetailActionButtons(
                     onClick = { viewModel.onEvent(PosUiEvent.CancelOrder(order.id)) },
                     modifier = Modifier.weight(1f),
                     shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        contentColor = MaterialTheme.colorScheme.error
-                    )
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)
                 ) {
                     Icon(Icons.Outlined.Cancel, null, Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(8.dp))
@@ -504,33 +385,17 @@ private fun PosDetailActionButtons(
                 }
             }
         }
-        else -> {
-            // No actions for PAID or CANCELED orders
-        }
+        else -> Unit
     }
 }
 
 @Composable
-private fun PosOrderItemCard(
-    name: String,
-    subtitle: String,
-    price: Double,
-    df: DecimalFormat,
-    icon: androidx.compose.ui.graphics.vector.ImageVector
-) {
+private fun PosOrderItemCard(name: String, subtitle: String, price: Double, df: DecimalFormat, icon: androidx.compose.ui.graphics.vector.ImageVector) {
     val interactionSource = remember { MutableInteractionSource() }
     val isHovered by interactionSource.collectIsHoveredAsState()
-
-    val elevation by animateDpAsState(
-        targetValue = if (isHovered) 4.dp else 1.dp,
-        animationSpec = tween(AppAnimations.DURATION_FAST)
-    )
-
+    val elevation by animateDpAsState(targetValue = if (isHovered) 4.dp else 1.dp, animationSpec = tween(AppAnimations.DURATION_FAST))
     val borderColor by animateColorAsState(
-        targetValue = if (isHovered) 
-            MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
-        else 
-            MaterialTheme.colorScheme.outline.copy(alpha = 0.1f),
+        targetValue = if (isHovered) MaterialTheme.colorScheme.primary.copy(alpha = 0.5f) else MaterialTheme.colorScheme.outline.copy(alpha = 0.1f),
         animationSpec = tween(AppAnimations.DURATION_FAST)
     )
 
@@ -542,20 +407,12 @@ private fun PosOrderItemCard(
         border = androidx.compose.foundation.BorderStroke(1.dp, borderColor)
     ) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Surface(
-                    shape = RoundedCornerShape(8.dp),
-                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
-                ) {
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                Surface(shape = RoundedCornerShape(8.dp), color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)) {
                     Icon(
                         imageVector = icon,
                         contentDescription = null,
@@ -564,37 +421,19 @@ private fun PosOrderItemCard(
                     )
                 }
                 Column {
-                    Text(
-                        text = name,
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Text(
-                        text = subtitle,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    Text(text = name, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
+                    Text(text = subtitle, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
 
-            Text(
-                text = "৳ ${df.format(price)}",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary
-            )
+            Text(text = "৳ ${df.format(price)}", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
         }
     }
 }
 
 @Composable
 private fun PosDetailLoadingContent() {
-    Column(
-        modifier = Modifier.fillMaxSize(),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
+    Column(modifier = Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
         CircularProgressIndicator(modifier = Modifier.size(48.dp), color = MaterialTheme.colorScheme.primary)
         Spacer(modifier = Modifier.height(16.dp))
         Text("Loading order...", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -602,12 +441,17 @@ private fun PosDetailLoadingContent() {
 }
 
 @Composable
+private fun PosDetailClosingContent() {
+    Column(modifier = Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+        CircularProgressIndicator(modifier = Modifier.size(36.dp), color = MaterialTheme.colorScheme.primary)
+        Spacer(modifier = Modifier.height(16.dp))
+        Text("Returning to orders...", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+@Composable
 private fun PosDetailErrorContent(onRetry: () -> Unit) {
-    Column(
-        modifier = Modifier.fillMaxSize().padding(32.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
+    Column(modifier = Modifier.fillMaxSize().padding(32.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
         Surface(shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.errorContainer) {
             Icon(Icons.Default.Error, null, Modifier.padding(16.dp).size(40.dp), tint = MaterialTheme.colorScheme.error)
         }
@@ -623,11 +467,7 @@ private fun PosDetailErrorContent(onRetry: () -> Unit) {
 }
 
 @Composable
-private fun PosToast(
-    message: String,
-    isError: Boolean,
-    modifier: Modifier = Modifier
-) {
+private fun PosToast(message: String, isError: Boolean, modifier: Modifier = Modifier) {
     Surface(
         modifier = modifier,
         shape = RoundedCornerShape(12.dp),

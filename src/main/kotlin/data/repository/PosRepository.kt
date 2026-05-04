@@ -2,12 +2,9 @@ package data.repository
 
 import data.model.*
 import data.network.PosApiService
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
@@ -51,6 +48,9 @@ class PosRepository(
     
     private val _beveragesCache = MutableStateFlow<List<BeverageResponse>>(emptyList())
     val beveragesCache: StateFlow<List<BeverageResponse>> = _beveragesCache.asStateFlow()
+
+    private val _paymentMethodsCache = MutableStateFlow<List<PaymentMethod>>(emptyList())
+    val paymentMethodsCache: StateFlow<List<PaymentMethod>> = _paymentMethodsCache.asStateFlow()
     
     // Mutex for thread-safe cache updates
     private val mutex = Mutex()
@@ -154,12 +154,12 @@ class PosRepository(
     /**
      * Mark order as PAID
      */
-    suspend fun markPaid(orderId: Long): Result<FoodOrderByCustomer> {
-        println("[$TAG] markPaid: orderId=$orderId")
-        val result = api.setPaidOrCancel(orderId, OrderStatus.PAID)
+    suspend fun markPaid(orderId: Long, paymentMethod: PaymentMethod? = null): Result<FoodOrderByCustomer> {
+        println("[$TAG] markPaid: orderId=$orderId, paymentMethod=$paymentMethod")
+        val result = api.setPaidOrCancel(orderId, OrderStatus.PAID, paymentMethod)
         
         // Always refresh orders list to ensure consistency
-        result.onSuccess { order ->
+        result.onSuccess {
             // Remove from active orders cache (paid orders are no longer active)
             removeOrderFromCache(orderId)
         }
@@ -178,7 +178,7 @@ class PosRepository(
         val result = api.setPaidOrCancel(orderId, OrderStatus.CANCELED)
         
         // Always refresh orders list to ensure consistency
-        result.onSuccess { order ->
+        result.onSuccess {
             // Remove from active orders cache
             removeOrderFromCache(orderId)
         }
@@ -199,6 +199,7 @@ class PosRepository(
             waiterId = order.waiterId,
             totalAmount = order.totalAmount,
             orderStatus = order.orderStatus,
+            paymentMethod = order.paymentMethod,
             tableId = order.tableId,
             tableNumber = order.tableNumber,
             createdDateTime = order.createdDateTime
@@ -209,15 +210,6 @@ class PosRepository(
         mutex.withLock {
             val shortInfo = toShortInfo(order)
             _ordersCache.value = _ordersCache.value + (order.id to shortInfo)
-            // Invalidate details cache
-            _orderDetailsCache.value = _orderDetailsCache.value - order.id
-            println("[$TAG] Order status updated in cache: id=${order.id}, status=${order.orderStatus}")
-        }
-    }
-
-    private suspend fun updateOrderInCache(order: FoodOrderShortInfo) {
-        mutex.withLock {
-            _ordersCache.value = _ordersCache.value + (order.id to order)
             // Invalidate details cache
             _orderDetailsCache.value = _orderDetailsCache.value - order.id
             println("[$TAG] Order status updated in cache: id=${order.id}, status=${order.orderStatus}")
@@ -235,11 +227,18 @@ class PosRepository(
     // ==================== Lookup Data ====================
 
     /**
-     * Load all lookup data (waiters, tables, food items, beverages)
+     * Load all lookup data (waiters, tables, food items, beverages, payment methods)
      */
     suspend fun loadLookupData(): Result<Unit> {
         println("[$TAG] loadLookupData")
         
+        api.getPaymentMethods().onSuccess { paymentMethods ->
+            _paymentMethodsCache.value = paymentMethods
+            println("[$TAG] Payment methods loaded: ${paymentMethods.size}")
+        }.onError { error ->
+            println("[$TAG] Failed to load payment methods: ${error.message}")
+        }
+
         // Load waiters
         api.getWaiters().onSuccess { waiters ->
             _waitersCache.value = waiters
@@ -302,5 +301,6 @@ class PosRepository(
         _tablesCache.value = emptyList()
         _foodItemsCache.value = emptyList()
         _beveragesCache.value = emptyList()
+        _paymentMethodsCache.value = emptyList()
     }
 }

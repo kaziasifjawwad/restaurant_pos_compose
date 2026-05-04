@@ -47,6 +47,8 @@ class ReportApiService {
         dateFrom: String? = null,
         dateTo: String? = null,
         waiterId: String? = null,
+        amountFrom: String? = null,
+        amountTo: String? = null,
         orderStatus: String? = null,
         paymentMethod: String? = null
     ): PosReportDashboardResponse {

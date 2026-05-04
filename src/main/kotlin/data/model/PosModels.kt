@@ -115,7 +115,8 @@ data class BeverageOrder(
 // ==================== Request Models ====================
 
 /**
- * Request model for creating/updating orders
+ * Request model for creating/updating orders.
+ * Payment method is intentionally not part of create/update; it is selected only during paid completion.
  */
 @Serializable
 data class FoodOrderByCustomerRequest(
@@ -127,8 +128,7 @@ data class FoodOrderByCustomerRequest(
     val beverageOrders: List<BeverageOrderRequest> = emptyList(),
     val discountType: DiscountType = DiscountType.PERCENTAGE,
     val discount: Double = 0.0,
-    val tableId: Long,
-    val paymentMethod: PaymentMethod? = null
+    val tableId: Long
 )
 
 /**

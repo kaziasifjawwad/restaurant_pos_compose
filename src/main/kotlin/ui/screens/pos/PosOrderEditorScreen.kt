@@ -50,13 +50,12 @@ fun PosOrderEditorScreen(
     val isEditMode = orderId != null
     var isContentVisible by remember { mutableStateOf(false) }
 
-    // Editor state
     var selectedWaiter by remember { mutableStateOf<WaiterInfo?>(null) }
     var selectedTable by remember { mutableStateOf<TableInfo?>(null) }
+    var selectedPaymentMethod by remember { mutableStateOf<PaymentMethod?>(null) }
     var foodOrders by remember { mutableStateOf<List<FoodOrderEntry>>(emptyList()) }
     var beverageOrders by remember { mutableStateOf<List<BeverageOrderEntry>>(emptyList()) }
 
-    // Food input state. Null foodSize means the backend will use the food item's default package.
     var foodSerialInput by remember { mutableStateOf("") }
     var selectedFoodSize by remember { mutableStateOf<FoodSize?>(null) }
 
@@ -70,13 +69,19 @@ fun PosOrderEditorScreen(
     }
     val isPackageDropdownEnabled = isSingleFoodInput && availablePackageSizes.isNotEmpty()
 
+    LaunchedEffect(uiState.paymentMethods, selectedPaymentMethod) {
+        if (selectedPaymentMethod == null && uiState.paymentMethods.isNotEmpty()) {
+            selectedPaymentMethod = uiState.paymentMethods.firstOrNull { it == PaymentMethod.CASH }
+                ?: uiState.paymentMethods.first()
+        }
+    }
+
     LaunchedEffect(foodSerialInput, availablePackageSizes) {
         if (!isPackageDropdownEnabled || selectedFoodSize !in availablePackageSizes) {
             selectedFoodSize = null
         }
     }
 
-    // Beverage input state
     var selectedBeverage by remember { mutableStateOf<BeverageResponse?>(null) }
     var selectedBeveragePrice by remember { mutableStateOf<BeveragePrice?>(null) }
     var beverageAmountInput by remember { mutableStateOf("1") }
@@ -91,13 +96,15 @@ fun PosOrderEditorScreen(
         isContentVisible = true
     }
 
-    // Populate from loaded order when editing. Keep default-package rows normalized as requestedFoodSize=null
-    // so adding the same default package later merges into the same visual row instead of creating a duplicate row.
-    LaunchedEffect(uiState.selectedOrder, uiState.foodItems) {
+    LaunchedEffect(uiState.selectedOrder, uiState.foodItems, uiState.paymentMethods) {
         uiState.selectedOrder?.let { order ->
             if (isEditMode) {
                 selectedWaiter = uiState.waiters.find { it.id == order.waiterId }
                 selectedTable = uiState.tables.find { it.id == order.tableId }
+                selectedPaymentMethod = order.paymentMethod
+                    ?: selectedPaymentMethod
+                    ?: uiState.paymentMethods.firstOrNull { it == PaymentMethod.CASH }
+                    ?: uiState.paymentMethods.firstOrNull()
                 foodOrders = order.foodOrders.map { fo ->
                     val lookupFoodItem = uiState.foodItems.find { it.itemNumber == fo.itemNumber }
                     val defaultSize = lookupFoodItem?.defaultPrice?.foodSize
@@ -209,10 +216,7 @@ fun PosOrderEditorScreen(
             } else {
                 updatedFoodOrders.map {
                     if (it.itemNumber == entry.itemNumber && it.actualFoodSize == entry.actualFoodSize) {
-                        it.copy(
-                            quantity = entry.quantity,
-                            requestedFoodSize = entry.requestedFoodSize
-                        )
+                        it.copy(quantity = entry.quantity, requestedFoodSize = entry.requestedFoodSize)
                     } else {
                         it
                     }
@@ -250,6 +254,10 @@ fun PosOrderEditorScreen(
     fun submitOrder() {
         val waiter = selectedWaiter ?: return
         val table = selectedTable ?: return
+        val paymentMethod = selectedPaymentMethod ?: run {
+            viewModel.onEvent(PosUiEvent.ShowError("Please select a payment method"))
+            return
+        }
         if (foodOrders.isEmpty() && beverageOrders.isEmpty()) return
 
         val request = FoodOrderByCustomerRequest(
@@ -258,6 +266,7 @@ fun PosOrderEditorScreen(
             waiterName = waiter.displayName,
             orderStatus = OrderStatus.ORDER_PLACED,
             tableId = table.id,
+            paymentMethod = paymentMethod,
             discountType = DiscountType.PERCENTAGE,
             discount = 0.0,
             foodOrders = foodOrders.map { fo ->
@@ -281,11 +290,7 @@ fun PosOrderEditorScreen(
             }
         )
 
-        val json = Json {
-            prettyPrint = true
-            encodeDefaults = true
-        }
-
+        val json = Json { prettyPrint = true; encodeDefaults = true }
         println(json.encodeToString(request))
         viewModel.onEvent(PosUiEvent.SaveOrder(request))
     }
@@ -392,9 +397,7 @@ fun PosOrderEditorScreen(
                             item {
                                 Card(
                                     modifier = Modifier.fillMaxWidth(),
-                                    colors = CardDefaults.cardColors(
-                                        containerColor = MaterialTheme.colorScheme.primaryContainer
-                                    ),
+                                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
                                     shape = RoundedCornerShape(12.dp)
                                 ) {
                                     Row(
@@ -426,7 +429,7 @@ fun PosOrderEditorScreen(
                                 .padding(16.dp),
                             verticalArrangement = Arrangement.spacedBy(16.dp)
                         ) {
-                            PosEditorFormSection(title = "Waiter & Table") {
+                            PosEditorFormSection(title = "Waiter, Table & Payment") {
                                 PosDropdown(
                                     label = "Waiter",
                                     selected = selectedWaiter?.displayName ?: "",
@@ -442,24 +445,27 @@ fun PosOrderEditorScreen(
                                     itemText = { "Table #${it.tableNumber}" },
                                     onSelect = { selectedTable = it }
                                 )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                PosDropdown(
+                                    label = "Payment Method",
+                                    selected = selectedPaymentMethod?.displayName ?: "",
+                                    items = uiState.paymentMethods,
+                                    itemText = { it.displayName },
+                                    onSelect = { selectedPaymentMethod = it },
+                                    enabled = uiState.paymentMethods.isNotEmpty()
+                                )
                             }
 
                             PosEditorFormSection(title = "Add Food Item") {
-                                Row(
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                    verticalAlignment = Alignment.Top
-                                ) {
+                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.Top) {
                                     OutlinedTextField(
                                         value = foodSerialInput,
                                         onValueChange = { foodSerialInput = it },
                                         label = { Text("Item # or 1*3") },
                                         supportingText = {
                                             Text(
-                                                if (foodSerialInput.trim().contains(' ')) {
-                                                    "Multiple items use default packages"
-                                                } else {
-                                                    "Blank package = default"
-                                                }
+                                                if (foodSerialInput.trim().contains(' ')) "Multiple items use default packages"
+                                                else "Blank package = default"
                                             )
                                         },
                                         modifier = Modifier
@@ -468,9 +474,7 @@ fun PosOrderEditorScreen(
                                                 if (event.key == Key.Enter && event.type == KeyEventType.KeyUp) {
                                                     addFoodItem()
                                                     true
-                                                } else {
-                                                    false
-                                                }
+                                                } else false
                                             },
                                         singleLine = true,
                                         shape = RoundedCornerShape(10.dp),
@@ -511,10 +515,7 @@ fun PosOrderEditorScreen(
                                     }
                                 )
                                 Spacer(modifier = Modifier.height(8.dp))
-                                Row(
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                    verticalAlignment = Alignment.Top
-                                ) {
+                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.Top) {
                                     PosDropdown(
                                         label = "Size",
                                         selected = selectedBeveragePrice?.let { "${it.quantity}${it.unit.name.first()}" } ?: "",
@@ -566,6 +567,7 @@ fun PosOrderEditorScreen(
                                     shape = RoundedCornerShape(12.dp),
                                     enabled = selectedWaiter != null &&
                                             selectedTable != null &&
+                                            selectedPaymentMethod != null &&
                                             (foodOrders.isNotEmpty() || beverageOrders.isNotEmpty()) &&
                                             !uiState.isSaving
                                 ) {
@@ -603,10 +605,7 @@ fun PosOrderEditorScreen(
     }
 }
 
-private data class ParsedFoodInput(
-    val itemNumber: Short,
-    val quantity: Int
-)
+private data class ParsedFoodInput(val itemNumber: Short, val quantity: Int)
 
 private fun parseFoodInput(input: String): List<ParsedFoodInput> {
     val text = input.trim()
@@ -615,21 +614,14 @@ private fun parseFoodInput(input: String): List<ParsedFoodInput> {
     return text.split(Regex("\\s+"))
         .map { token ->
             val parts = token.split("*")
-            if (parts.isEmpty() || parts.size > 2 || parts.any { it.isBlank() }) {
-                return emptyList()
-            }
-
+            if (parts.isEmpty() || parts.size > 2 || parts.any { it.isBlank() }) return emptyList()
             val itemNumber = parts[0].toShortOrNull() ?: return emptyList()
             val quantity = if (parts.size == 1) 1 else parts[1].toIntOrNull() ?: return emptyList()
-            if (itemNumber <= 0 || quantity <= 0) {
-                return emptyList()
-            }
-
+            if (itemNumber <= 0 || quantity <= 0) return emptyList()
             ParsedFoodInput(itemNumber = itemNumber, quantity = quantity)
         }
 }
 
-// Entry classes for editor state
 private data class FoodOrderEntry(
     val itemNumber: Short,
     val foodName: String,
@@ -641,11 +633,7 @@ private data class FoodOrderEntry(
     val discountType: DiscountType
 ) {
     val packageLabel: String
-        get() = if (requestedFoodSize == null) {
-            "Default: ${actualFoodSize.name} × $quantity"
-        } else {
-            "${actualFoodSize.name} × $quantity"
-        }
+        get() = if (requestedFoodSize == null) "Default: ${actualFoodSize.name} × $quantity" else "${actualFoodSize.name} × $quantity"
 }
 
 private data class BeverageOrderEntry(
@@ -660,19 +648,10 @@ private data class BeverageOrderEntry(
 )
 
 @Composable
-private fun PosEditorHeader(
-    isEditMode: Boolean,
-    onBack: () -> Unit
-) {
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        color = MaterialTheme.colorScheme.surface,
-        shadowElevation = 4.dp
-    ) {
+private fun PosEditorHeader(isEditMode: Boolean, onBack: () -> Unit) {
+    Surface(modifier = Modifier.fillMaxWidth(), color = MaterialTheme.colorScheme.surface, shadowElevation = 4.dp) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             IconButton(onClick = onBack) {
@@ -698,11 +677,7 @@ private fun PosEditorHeader(
 
 @Composable
 private fun PosEditorLoadingContent() {
-    Column(
-        modifier = Modifier.fillMaxSize(),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
+    Column(modifier = Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
         CircularProgressIndicator(modifier = Modifier.size(48.dp), color = MaterialTheme.colorScheme.primary)
         Spacer(modifier = Modifier.height(16.dp))
         Text("Loading...", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -710,10 +685,7 @@ private fun PosEditorLoadingContent() {
 }
 
 @Composable
-private fun PosEditorFormSection(
-    title: String,
-    content: @Composable ColumnScope.() -> Unit
-) {
+private fun PosEditorFormSection(title: String, content: @Composable ColumnScope.() -> Unit) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
@@ -746,11 +718,7 @@ private fun <T> PosDropdown(
 ) {
     var expanded by remember { mutableStateOf(false) }
 
-    ExposedDropdownMenuBox(
-        expanded = enabled && expanded,
-        onExpandedChange = { if (enabled) expanded = it },
-        modifier = modifier
-    ) {
+    ExposedDropdownMenuBox(expanded = enabled && expanded, onExpandedChange = { if (enabled) expanded = it }, modifier = modifier) {
         OutlinedTextField(
             value = selected,
             onValueChange = {},
@@ -763,16 +731,9 @@ private fun <T> PosDropdown(
             singleLine = true
         )
 
-        ExposedDropdownMenu(
-            expanded = enabled && expanded,
-            onDismissRequest = { expanded = false }
-        ) {
+        ExposedDropdownMenu(expanded = enabled && expanded, onDismissRequest = { expanded = false }) {
             if (items.isEmpty()) {
-                DropdownMenuItem(
-                    text = { Text("No package") },
-                    onClick = { expanded = false },
-                    enabled = false
-                )
+                DropdownMenuItem(text = { Text("No option") }, onClick = { expanded = false }, enabled = false)
             } else {
                 items.forEach { item ->
                     DropdownMenuItem(
@@ -789,13 +750,7 @@ private fun <T> PosDropdown(
 }
 
 @Composable
-private fun PosEditorItemCard(
-    name: String,
-    subtitle: String,
-    price: Double,
-    df: DecimalFormat,
-    onRemove: () -> Unit
-) {
+private fun PosEditorItemCard(name: String, subtitle: String, price: Double, df: DecimalFormat, onRemove: () -> Unit) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(10.dp),
@@ -811,12 +766,7 @@ private fun PosEditorItemCard(
                 Text(name, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
                 Text(subtitle, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            Text(
-                "৳ ${df.format(price)}",
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary
-            )
+            Text("৳ ${df.format(price)}", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
             IconButton(onClick = onRemove, modifier = Modifier.size(32.dp)) {
                 Icon(Icons.Default.Delete, "Remove", tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(18.dp))
             }
@@ -825,11 +775,7 @@ private fun PosEditorItemCard(
 }
 
 @Composable
-private fun PosToast(
-    message: String,
-    isError: Boolean,
-    modifier: Modifier = Modifier
-) {
+private fun PosToast(message: String, isError: Boolean, modifier: Modifier = Modifier) {
     Surface(
         modifier = modifier,
         shape = RoundedCornerShape(12.dp),

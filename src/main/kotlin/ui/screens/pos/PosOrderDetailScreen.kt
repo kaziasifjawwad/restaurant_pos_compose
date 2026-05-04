@@ -436,11 +436,21 @@ private fun CheckoutEngine(
     viewModel: PosViewModel,
     modifier: Modifier = Modifier
 ) {
-    var selectedPaymentMethod by remember(order.id) { mutableStateOf<PaymentMethod?>(null) }
+    val defaultPaymentMethod = remember(paymentMethods) {
+        paymentMethods.firstOrNull { it.active && it.defaultMethod }?.methodCode
+            ?: paymentMethods.firstOrNull { it.active }?.methodCode
+    }
+    var selectedPaymentMethod by remember(order.id) { mutableStateOf(order.paymentMethod ?: defaultPaymentMethod) }
     var isCompleting by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val subtotal = remember(order) {
         order.foodOrders.sumOf { it.foodPrice * it.foodQuantity } + order.beverageOrders.sumOf { it.price * it.amount }
+    }
+
+    LaunchedEffect(order.id, defaultPaymentMethod) {
+        if (selectedPaymentMethod == null) {
+            selectedPaymentMethod = defaultPaymentMethod
+        }
     }
 
     Card(
@@ -456,7 +466,7 @@ private fun CheckoutEngine(
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text("Checkout Engine", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-                Text("Choose a payment method to unlock completion", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("Default payment method is selected from backend configuration", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
 
             FinancialBreakdown(subtotal = subtotal, tax = 0.0, discount = order.discount, grandTotal = order.totalAmount, df = df)
@@ -464,7 +474,7 @@ private fun CheckoutEngine(
 
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text("Payment Method", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                Text("No payment is captured until Complete Order is confirmed.", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("Payment methods are loaded from backend; the default method is preselected.", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 PaymentActionTiles(
                     paymentMethods = paymentMethods,
                     selectedPaymentMethod = selectedPaymentMethod,
@@ -551,16 +561,34 @@ private fun PaymentActionTiles(
     selectedPaymentMethod: PaymentMethod?,
     onSelect: (PaymentMethod) -> Unit
 ) {
-    val mobileMethod = paymentMethods
-        .filter { it.active && it.methodCode in listOf(PaymentMethod.BKASH, PaymentMethod.ROCKET, PaymentMethod.NAGAD) }
-        .let { methods -> methods.firstOrNull { it.defaultMethod } ?: methods.firstOrNull() }
-        ?.methodCode ?: PaymentMethod.BKASH
+    val options = remember(paymentMethods) {
+        paymentMethods
+            .filter { it.active }
+            .map {
+                PaymentTileOption(
+                    title = it.methodCode.tileTitle(),
+                    subtitle = it.displayName,
+                    icon = it.methodCode.tileIcon(),
+                    method = it.methodCode,
+                    isDefault = it.defaultMethod
+                )
+            }
+    }
 
-    val options = listOf(
-        PaymentTileOption("Cash", "Counter cash", Icons.Outlined.Payments, PaymentMethod.CASH),
-        PaymentTileOption("Card", "Debit / credit", Icons.Outlined.CreditCard, PaymentMethod.CREDIT_CARD),
-        PaymentTileOption("Mobile Pay", mobileMethod.displayName, Icons.Outlined.PhoneAndroid, mobileMethod)
-    )
+    if (options.isEmpty()) {
+        Surface(
+            shape = RoundedCornerShape(14.dp),
+            color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.55f)
+        ) {
+            Text(
+                "No active payment method found. Please configure payment methods first.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+                modifier = Modifier.padding(14.dp)
+            )
+        }
+        return
+    }
 
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         options.forEach { option ->
@@ -578,8 +606,25 @@ private data class PaymentTileOption(
     val title: String,
     val subtitle: String,
     val icon: ImageVector,
-    val method: PaymentMethod
+    val method: PaymentMethod,
+    val isDefault: Boolean
 )
+
+private fun PaymentMethod.tileTitle(): String = when (this) {
+    PaymentMethod.CASH -> "Cash"
+    PaymentMethod.CREDIT_CARD -> "Card"
+    PaymentMethod.BKASH,
+    PaymentMethod.ROCKET,
+    PaymentMethod.NAGAD -> "Mobile Pay"
+}
+
+private fun PaymentMethod.tileIcon(): ImageVector = when (this) {
+    PaymentMethod.CASH -> Icons.Outlined.Payments
+    PaymentMethod.CREDIT_CARD -> Icons.Outlined.CreditCard
+    PaymentMethod.BKASH,
+    PaymentMethod.ROCKET,
+    PaymentMethod.NAGAD -> Icons.Outlined.PhoneAndroid
+}
 
 @Composable
 private fun PaymentTile(option: PaymentTileOption, selected: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
@@ -618,6 +663,16 @@ private fun PaymentTile(option: PaymentTileOption, selected: Boolean, modifier: 
             if (selected) {
                 Surface(shape = RoundedCornerShape(999.dp), color = Goldenrod, modifier = Modifier.align(Alignment.TopEnd)) {
                     Icon(Icons.Default.Check, null, tint = Slate900, modifier = Modifier.padding(4.dp).size(14.dp))
+                }
+            } else if (option.isDefault) {
+                Surface(shape = RoundedCornerShape(999.dp), color = Goldenrod.copy(alpha = 0.14f), modifier = Modifier.align(Alignment.TopEnd)) {
+                    Text(
+                        "Default",
+                        color = Goldenrod,
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
+                    )
                 }
             }
         }

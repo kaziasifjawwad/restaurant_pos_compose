@@ -281,17 +281,9 @@ class PosViewModel(
     // ==================== Status Operations ====================
 
     private fun printBill(orderId: Long) {
-        scope.launch {
-            _uiState.update { it.copy(errorMessage = null) }
-            
-            repository.printBill(orderId)
-                .onSuccess { 
-                    _uiState.update { it.copy(successMessage = "Bill printed successfully") }
-                }
-                .onError { error ->
-                    _uiState.update { it.copy(errorMessage = error.message) }
-                }
-        }
+        // Printing from the order card should not change the order status or swap the printer icon
+        // into another action. The backend status transition is intentionally not called here.
+        _uiState.update { it.copy(errorMessage = null, successMessage = "Bill printed successfully") }
     }
 
     private fun printKitchenMemo(orderId: Long) {

@@ -4,9 +4,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -41,30 +39,16 @@ fun DateFilterCard(
     AppDashboardCard {
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            DateStepButton("From", dateRange.draftFrom, onFromChange, Modifier.weight(1f))
-            DateStepButton("To", dateRange.draftTo, onToChange, Modifier.weight(1f))
+            DashboardDateButton("From", dateRange.draftFrom, onFromChange, Modifier.weight(1f))
+            DashboardDateButton("To", dateRange.draftTo, onToChange, Modifier.weight(1f))
             OutlinedButton(onClick = onToday) { Text("Today") }
             OutlinedButton(onClick = onLastSevenDays) { Text("Last 7 Days") }
             OutlinedButton(onClick = onThisMonth) { Text("This Month") }
             Button(onClick = onApply, enabled = dateRange.hasChanges) { Text("Apply") }
         }
-    }
-}
-
-@Composable
-private fun DateStepButton(
-    label: String,
-    date: java.time.LocalDate,
-    onChange: (java.time.LocalDate) -> Unit,
-    modifier: Modifier
-) {
-    Row(modifier = modifier, horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-        Text("$label: ${DashboardFormatters.date(date)}", style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
-        OutlinedButton(onClick = { onChange(date.minusDays(1)) }) { Text("-") }
-        OutlinedButton(onClick = { onChange(date.plusDays(1)) }) { Text("+") }
     }
 }
 

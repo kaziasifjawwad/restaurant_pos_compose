@@ -51,7 +51,7 @@ fun DonutChartCard(
 ) {
     val compactEntries = entries.filter { it.value.isFinite() && it.value > 0.0 }.sortedByDescending { it.value }.take(5)
     val total = compactEntries.sumOf { it.value }
-    val colors = chartColors()
+    val colors = dashboardChartColors()
     var selected by remember(entries) { mutableStateOf<ChartEntry?>(null) }
 
     AppDashboardCard(modifier = Modifier.height(338.dp)) {
@@ -109,7 +109,7 @@ fun DonutChartCard(
                 }
             }
             selected?.let {
-                Surface(shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f)) {
+                Surface(shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.65f)) {
                     Text("${it.label}: ${valueFormatter(it.value)}", modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp), style = MaterialTheme.typography.labelSmall)
                 }
             }
@@ -131,6 +131,7 @@ fun HorizontalBarChartCard(
 ) {
     val items = entries.filter { it.value.isFinite() && it.value > 0.0 }.sortedByDescending { it.value }.take(7)
     val maxValue = max(items.maxOfOrNull { it.value } ?: 0.0, 1.0)
+    val barColor = dashboardChartColors().first()
     AppDashboardCard(modifier = Modifier.height(338.dp)) {
         Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
         if (items.isEmpty()) {
@@ -144,8 +145,8 @@ fun HorizontalBarChartCard(
                             Text(valueFormatter(item.value), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                         Spacer(Modifier.height(5.dp))
-                        Box(modifier = Modifier.fillMaxWidth().height(10.dp).clip(RoundedCornerShape(99.dp)).background(MaterialTheme.colorScheme.surfaceVariant)) {
-                            Box(modifier = Modifier.fillMaxWidth((item.value / maxValue).toFloat().coerceIn(0.02f, 1f)).height(10.dp).clip(RoundedCornerShape(99.dp)).background(MaterialTheme.colorScheme.primary))
+                        Box(modifier = Modifier.fillMaxWidth().height(10.dp).clip(RoundedCornerShape(99.dp)).background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f))) {
+                            Box(modifier = Modifier.fillMaxWidth((item.value / maxValue).toFloat().coerceIn(0.02f, 1f)).height(10.dp).clip(RoundedCornerShape(99.dp)).background(barColor))
                         }
                     }
                 }
@@ -158,22 +159,48 @@ fun HorizontalBarChartCard(
 fun StackedStatusBarCard(data: DashboardFullResponse) {
     val items = data.orderStatusDistribution.items.filter { it.count > 0 }
     val totalRaw = items.sumOf { it.count }.toDouble()
-    val colors = chartColors()
     AppDashboardCard(modifier = Modifier.height(338.dp)) {
         Text("Order Status", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
         if (items.isEmpty() || totalRaw <= 0.0) {
             EmptyDashboardState("No order status data")
         } else {
-            Row(modifier = Modifier.fillMaxWidth().height(22.dp).clip(RoundedCornerShape(99.dp))) {
+            Column(verticalArrangement = Arrangement.spacedBy(14.dp), modifier = Modifier.fillMaxWidth()) {
+                Row(modifier = Modifier.fillMaxWidth().height(28.dp).clip(RoundedCornerShape(99.dp))) {
+                    items.forEachIndexed { index, item ->
+                        Box(
+                            modifier = Modifier
+                                .weight((item.count.toDouble() / totalRaw).toFloat().coerceAtLeast(0.02f))
+                                .background(statusColor(item.status, index))
+                        )
+                    }
+                }
                 items.forEachIndexed { index, item ->
-                    Box(modifier = Modifier.weight((item.count.toDouble() / totalRaw).toFloat().coerceAtLeast(0.01f)).background(colors[index % colors.size]))
+                    val percentage = item.count / totalRaw * 100.0
+                    StatusBarRow(
+                        label = item.status.ifBlank { "Unknown" },
+                        count = item.count,
+                        percentage = percentage,
+                        color = statusColor(item.status, index)
+                    )
                 }
             }
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                items.forEachIndexed { index, item ->
-                    LegendRow(colors[index % colors.size], ChartEntry(item.status.ifBlank { "Unknown" }, item.count.toDouble()), item.count / totalRaw * 100.0, { DashboardFormatters.decimal(it) }) {}
-                }
+        }
+    }
+}
+
+@Composable
+private fun StatusBarRow(label: String, count: Long, percentage: Double, color: Color) {
+    Column(verticalArrangement = Arrangement.spacedBy(5.dp), modifier = Modifier.fillMaxWidth()) {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                Box(Modifier.size(10.dp).clip(CircleShape).background(color))
+                Text(label, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text("$count orders", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
+            Text(DashboardFormatters.percent(percentage), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+        }
+        Box(modifier = Modifier.fillMaxWidth().height(12.dp).clip(RoundedCornerShape(99.dp)).background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.50f))) {
+            Box(modifier = Modifier.fillMaxWidth((percentage / 100.0).toFloat().coerceIn(0.02f, 1f)).height(12.dp).clip(RoundedCornerShape(99.dp)).background(color))
         }
     }
 }
@@ -185,8 +212,8 @@ fun PeakHoursBarCard(data: DashboardFullResponse) {
     val maxValue = max(values.maxOrNull() ?: 0.0, 1.0)
     val busiest = data.peakHours.maxByOrNull { it.totalSales }
     var selectedHour by remember(data.peakHours) { mutableStateOf<Int?>(null) }
-    val barColor = MaterialTheme.colorScheme.primary
-    val axis = MaterialTheme.colorScheme.outline.copy(alpha = 0.45f)
+    val barColor = dashboardChartColors().first()
+    val axis = MaterialTheme.colorScheme.outline.copy(alpha = 0.55f)
 
     AppDashboardCard {
         Text("Peak Hours", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
@@ -199,7 +226,7 @@ fun PeakHoursBarCard(data: DashboardFullResponse) {
             EmptyDashboardState("No peak hour sales for this period")
         } else {
             selectedHour?.let { hour ->
-                Text("$hour:00 · ${DashboardFormatters.money(values[hour])}", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                Text("$hour:00 · ${DashboardFormatters.money(values[hour])}", style = MaterialTheme.typography.labelMedium, color = barColor)
             }
             Canvas(
                 modifier = Modifier.fillMaxWidth().height(190.dp).clipToBounds().semantics {
@@ -243,10 +270,10 @@ private fun LegendRow(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.Top
     ) {
-        Box(Modifier.padding(top = 4.dp).size(9.dp).clip(CircleShape).background(color))
+        Box(Modifier.padding(top = 4.dp).size(10.dp).clip(CircleShape).background(color))
         Column(modifier = Modifier.weight(1f)) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text(entry.label, modifier = Modifier.weight(1f), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(entry.label, modifier = Modifier.weight(1f), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(DashboardFormatters.percent(percentage), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             Text(listOf(valueFormatter(entry.value), entry.secondary).filter { it.isNotBlank() }.joinToString(" · "), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -255,10 +282,4 @@ private fun LegendRow(
 }
 
 @Composable
-fun chartColors(): List<Color> = listOf(
-    MaterialTheme.colorScheme.primary,
-    MaterialTheme.colorScheme.secondary,
-    MaterialTheme.colorScheme.tertiary,
-    MaterialTheme.colorScheme.error,
-    MaterialTheme.colorScheme.outline
-)
+fun chartColors(): List<Color> = dashboardChartColors()

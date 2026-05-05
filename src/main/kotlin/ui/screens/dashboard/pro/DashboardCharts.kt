@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
@@ -27,6 +26,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
@@ -39,7 +39,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import data.model.DashboardFullResponse
-import kotlin.math.PI
 import kotlin.math.atan2
 import kotlin.math.max
 
@@ -50,19 +49,19 @@ fun DonutChartCard(
     valueFormatter: (Double) -> String,
     onEntryClick: (ChartEntry) -> Unit = {}
 ) {
-    val compactEntries = entries.sortedByDescending { it.value }.take(4)
+    val compactEntries = entries.filter { it.value.isFinite() && it.value > 0.0 }.sortedByDescending { it.value }.take(5)
     val total = compactEntries.sumOf { it.value }
     val colors = chartColors()
     var selected by remember(entries) { mutableStateOf<ChartEntry?>(null) }
 
-    AppDashboardCard(modifier = Modifier.height(286.dp)) {
-        Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+    AppDashboardCard(modifier = Modifier.height(338.dp)) {
+        Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
         if (total <= 0.0 || compactEntries.isEmpty()) {
             EmptyDashboardState("No data for this period")
         } else {
             Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
                 Canvas(
-                    modifier = Modifier.size(122.dp).semantics {
+                    modifier = Modifier.size(156.dp).clipToBounds().semantics {
                         contentDescription = "$title donut chart total ${valueFormatter(total)}"
                     }.pointerInput(compactEntries) {
                         detectTapGestures { offset ->
@@ -90,20 +89,22 @@ fun DonutChartCard(
                     var start = -90f
                     compactEntries.forEachIndexed { index, entry ->
                         val sweep = ((entry.value / total) * 360.0).toFloat()
-                        drawArc(
-                            color = colors[index % colors.size],
-                            startAngle = start,
-                            sweepAngle = sweep,
-                            useCenter = false,
-                            topLeft = topLeft,
-                            size = Size(diameter, diameter),
-                            style = Stroke(width = strokeWidth, cap = StrokeCap.Butt)
-                        )
+                        if (sweep.isFinite() && sweep > 0f) {
+                            drawArc(
+                                color = colors[index % colors.size],
+                                startAngle = start,
+                                sweepAngle = sweep,
+                                useCenter = false,
+                                topLeft = topLeft,
+                                size = Size(diameter, diameter),
+                                style = Stroke(width = strokeWidth, cap = StrokeCap.Round)
+                            )
+                        }
                         start += sweep
                     }
                 }
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(valueFormatter(total), style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold, maxLines = 1)
+                    Text(valueFormatter(total), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, maxLines = 1)
                     Text("Total", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
@@ -112,7 +113,7 @@ fun DonutChartCard(
                     Text("${it.label}: ${valueFormatter(it.value)}", modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp), style = MaterialTheme.typography.labelSmall)
                 }
             }
-            Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 compactEntries.forEachIndexed { index, entry ->
                     LegendRow(colors[index % colors.size], entry, entry.value / total * 100.0, valueFormatter, onEntryClick)
                 }
@@ -128,23 +129,23 @@ fun HorizontalBarChartCard(
     valueFormatter: (Double) -> String,
     onEntryClick: (ChartEntry) -> Unit = {}
 ) {
-    val items = entries.sortedByDescending { it.value }.take(7)
+    val items = entries.filter { it.value.isFinite() && it.value > 0.0 }.sortedByDescending { it.value }.take(7)
     val maxValue = max(items.maxOfOrNull { it.value } ?: 0.0, 1.0)
-    AppDashboardCard {
+    AppDashboardCard(modifier = Modifier.height(338.dp)) {
         Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
         if (items.isEmpty()) {
             EmptyDashboardState("No data for this period")
         } else {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 items.forEach { item ->
                     Column(modifier = Modifier.fillMaxWidth().clickable { onEntryClick(item) }) {
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                             Text(item.label, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             Text(valueFormatter(item.value), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
-                        Spacer(Modifier.height(4.dp))
-                        Box(modifier = Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(99.dp)).background(MaterialTheme.colorScheme.surfaceVariant)) {
-                            Box(modifier = Modifier.fillMaxWidth((item.value / maxValue).toFloat().coerceIn(0.02f, 1f)).height(8.dp).clip(RoundedCornerShape(99.dp)).background(MaterialTheme.colorScheme.primary))
+                        Spacer(Modifier.height(5.dp))
+                        Box(modifier = Modifier.fillMaxWidth().height(10.dp).clip(RoundedCornerShape(99.dp)).background(MaterialTheme.colorScheme.surfaceVariant)) {
+                            Box(modifier = Modifier.fillMaxWidth((item.value / maxValue).toFloat().coerceIn(0.02f, 1f)).height(10.dp).clip(RoundedCornerShape(99.dp)).background(MaterialTheme.colorScheme.primary))
                         }
                     }
                 }
@@ -155,22 +156,22 @@ fun HorizontalBarChartCard(
 
 @Composable
 fun StackedStatusBarCard(data: DashboardFullResponse) {
-    val items = data.orderStatusDistribution.items
-    val total = max(items.sumOf { it.count }.toDouble(), 1.0)
+    val items = data.orderStatusDistribution.items.filter { it.count > 0 }
+    val totalRaw = items.sumOf { it.count }.toDouble()
     val colors = chartColors()
-    AppDashboardCard {
+    AppDashboardCard(modifier = Modifier.height(338.dp)) {
         Text("Order Status", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-        if (items.isEmpty()) {
+        if (items.isEmpty() || totalRaw <= 0.0) {
             EmptyDashboardState("No order status data")
         } else {
-            Row(modifier = Modifier.fillMaxWidth().height(18.dp).clip(RoundedCornerShape(99.dp))) {
+            Row(modifier = Modifier.fillMaxWidth().height(22.dp).clip(RoundedCornerShape(99.dp))) {
                 items.forEachIndexed { index, item ->
-                    Box(modifier = Modifier.weight((item.count.toDouble() / total).toFloat().coerceAtLeast(0.01f)).background(colors[index % colors.size]))
+                    Box(modifier = Modifier.weight((item.count.toDouble() / totalRaw).toFloat().coerceAtLeast(0.01f)).background(colors[index % colors.size]))
                 }
             }
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 items.forEachIndexed { index, item ->
-                    LegendRow(colors[index % colors.size], ChartEntry(item.status.ifBlank { "Unknown" }, item.count.toDouble()), item.count / total * 100.0, { DashboardFormatters.decimal(it) }) {}
+                    LegendRow(colors[index % colors.size], ChartEntry(item.status.ifBlank { "Unknown" }, item.count.toDouble()), item.count / totalRaw * 100.0, { DashboardFormatters.decimal(it) }) {}
                 }
             }
         }
@@ -190,7 +191,7 @@ fun PeakHoursBarCard(data: DashboardFullResponse) {
     AppDashboardCard {
         Text("Peak Hours", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
         Text(
-            if (busiest != null) "Busiest: ${busiest.label} (${DashboardFormatters.money(busiest.totalSales)})" else "No hourly data",
+            if (busiest != null && busiest.totalSales > 0.0) "Busiest: ${busiest.label} (${DashboardFormatters.money(busiest.totalSales)})" else "No hourly data",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -201,7 +202,7 @@ fun PeakHoursBarCard(data: DashboardFullResponse) {
                 Text("$hour:00 · ${DashboardFormatters.money(values[hour])}", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
             }
             Canvas(
-                modifier = Modifier.fillMaxWidth().height(176.dp).semantics {
+                modifier = Modifier.fillMaxWidth().height(190.dp).clipToBounds().semantics {
                     contentDescription = "Peak hours bar chart. Busiest hour ${busiest?.label ?: "not available"}."
                 }.pointerInput(values) {
                     detectTapGestures { offset ->
@@ -210,7 +211,7 @@ fun PeakHoursBarCard(data: DashboardFullResponse) {
                     }
                 }
             ) {
-                val chartHeight = size.height - 22f
+                val chartHeight = size.height - 24f
                 val slot = size.width / 24f
                 val barWidth = slot * 0.58f
                 drawLine(axis, Offset(0f, chartHeight), Offset(size.width, chartHeight), strokeWidth = 1.2f)
@@ -239,10 +240,10 @@ private fun LegendRow(
 ) {
     Row(
         modifier = Modifier.fillMaxWidth().clickable { onClick(entry) },
-        horizontalArrangement = Arrangement.spacedBy(7.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.Top
     ) {
-        Box(Modifier.padding(top = 3.dp).size(8.dp).clip(CircleShape).background(color))
+        Box(Modifier.padding(top = 4.dp).size(9.dp).clip(CircleShape).background(color))
         Column(modifier = Modifier.weight(1f)) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text(entry.label, modifier = Modifier.weight(1f), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)

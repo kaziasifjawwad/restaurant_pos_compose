@@ -5,7 +5,10 @@ import data.model.MenuItem
 import ui.screens.*
 import ui.screens.dashboard.pro.DashboardScreenPro
 import ui.screens.pos.*
+import ui.screens.takeout.*
+import ui.screens.takeout.report.TakeoutReportScreen
 import ui.viewmodel.PosViewModel
+import ui.viewmodel.TakeoutViewModel
 
 sealed class FoodItemDestination {
     object List : FoodItemDestination()
@@ -28,6 +31,15 @@ sealed class PosDestination {
     data class Edit(val orderId: Long) : PosDestination()
 }
 
+sealed class TakeoutDestination {
+    object List : TakeoutDestination()
+    object Create : TakeoutDestination()
+    data class View(val orderId: Long) : TakeoutDestination()
+    data class Edit(val orderId: Long) : TakeoutDestination()
+    object Mediums : TakeoutDestination()
+    object Report : TakeoutDestination()
+}
+
 sealed class ReportDestination {
     object List : ReportDestination()
     data class Detail(val orderId: String) : ReportDestination()
@@ -38,6 +50,10 @@ sealed class MenuDestination(val menuCode: String) {
     object FoodItem : MenuDestination("FOOD_ITEM")
     object Beverage : MenuDestination("BEVERAGE")
     object Pos : MenuDestination("POS")
+    object Takeout : MenuDestination("TAKEOUT")
+    object TakeoutOrder : MenuDestination("TAKEOUT_ORDER")
+    object TakeoutMedium : MenuDestination("TAKEOUT_MEDIUM")
+    object TakeoutReport : MenuDestination("TAKEOUT_REPORT")
     object Ingredients : MenuDestination("INGREDIENTS")
     object FoodCategory : MenuDestination("FOOD_CATEGORY")
     object SetupMenu : MenuDestination("SETUP_MENU")
@@ -54,7 +70,9 @@ sealed class MenuDestination(val menuCode: String) {
 
     companion object {
         private val POS_VARIANTS = setOf("POS", "POS_ORDER", "POS_ORDERS", "POS_MANAGEMENT")
+        private val TAKEOUT_VARIANTS = setOf("TAKEOUT", "TAKEOUT_ORDER", "TAKEOUT_ORDERS", "TAKEOUT_MANAGEMENT", "PARCEL_ORDER", "DELIVERY_ORDER")
         fun isPosMenu(menuCode: String): Boolean = menuCode.uppercase() in POS_VARIANTS
+        fun isTakeoutMenu(menuCode: String): Boolean = menuCode.uppercase() in TAKEOUT_VARIANTS
     }
 }
 
@@ -65,6 +83,9 @@ fun NavigationHost(currentMenuCode: String, currentMenuItem: MenuItem? = null) {
         currentMenuCode == MenuDestination.FoodItem.menuCode -> FoodItemNavigationHost()
         currentMenuCode == MenuDestination.Beverage.menuCode -> BeverageNavigationHost()
         MenuDestination.isPosMenu(currentMenuCode) -> PosNavigationHost()
+        currentMenuCode == MenuDestination.TakeoutMedium.menuCode -> TakeoutNavigationHost(TakeoutDestination.Mediums)
+        currentMenuCode == MenuDestination.TakeoutReport.menuCode -> TakeoutNavigationHost(TakeoutDestination.Report)
+        MenuDestination.isTakeoutMenu(currentMenuCode) -> TakeoutNavigationHost()
         currentMenuCode == MenuDestination.Ingredients.menuCode -> ui.screens.inventory.IngredientsScreen()
         currentMenuCode == MenuDestination.FoodCategory.menuCode -> ui.screens.inventory.FoodCategoryScreen()
         currentMenuCode == MenuDestination.SetupMenu.menuCode -> ui.screens.menu.MenuSetupScreen()
@@ -160,6 +181,42 @@ fun PosNavigationHost() {
             viewModel = viewModel,
             onNavigateBack = { destination = PosDestination.List }
         )
+    }
+}
+
+@Composable
+fun TakeoutNavigationHost(initialDestination: TakeoutDestination = TakeoutDestination.List) {
+    var destination by remember { mutableStateOf(initialDestination) }
+    val viewModel = remember { TakeoutViewModel() }
+    when (val current = destination) {
+        is TakeoutDestination.List -> TakeoutOrderListScreen(
+            viewModel = viewModel,
+            onNavigateToCreate = { destination = TakeoutDestination.Create },
+            onNavigateToDetail = { destination = TakeoutDestination.View(it) },
+            onNavigateToEdit = { destination = TakeoutDestination.Edit(it) },
+            onNavigateToMediums = { destination = TakeoutDestination.Mediums }
+        )
+        is TakeoutDestination.Create -> TakeoutOrderEditorScreen(
+            orderId = null,
+            viewModel = viewModel,
+            onNavigateBack = { destination = TakeoutDestination.List }
+        )
+        is TakeoutDestination.View -> TakeoutOrderDetailScreen(
+            orderId = current.orderId,
+            viewModel = viewModel,
+            onNavigateBack = { destination = TakeoutDestination.List },
+            onNavigateToEdit = { destination = TakeoutDestination.Edit(it) }
+        )
+        is TakeoutDestination.Edit -> TakeoutOrderEditorScreen(
+            orderId = current.orderId,
+            viewModel = viewModel,
+            onNavigateBack = { destination = TakeoutDestination.List }
+        )
+        is TakeoutDestination.Mediums -> TakeoutMediumListScreen(
+            viewModel = viewModel,
+            onNavigateBack = { destination = TakeoutDestination.List }
+        )
+        is TakeoutDestination.Report -> TakeoutReportScreen()
     }
 }
 

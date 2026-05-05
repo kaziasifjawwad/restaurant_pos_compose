@@ -73,6 +73,7 @@ data class PosOrderDetailResponse(
     val tableId: String,
     val orderStatus: String,
     val paymentMethod: String? = null,
+    val cancelReason: String? = null,
     val foodOrders: List<FoodOrderItem> = emptyList(),
     val beverageOrders: List<BeverageOrderItem> = emptyList(),
     val discountType: String,

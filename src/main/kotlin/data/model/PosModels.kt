@@ -31,7 +31,11 @@ enum class PaymentMethod {
     CREDIT_CARD,
     BKASH,
     ROCKET,
-    NAGAD;
+    NAGAD,
+    PLATFORM_ONLINE,
+    PLATFORM_CASH,
+    PLATFORM_SETTLEMENT,
+    CASH_ON_DELIVERY;
 
     val displayName: String get() = when (this) {
         CASH -> "Cash"
@@ -39,6 +43,10 @@ enum class PaymentMethod {
         BKASH -> "bKash"
         ROCKET -> "Rocket"
         NAGAD -> "Nagad"
+        PLATFORM_ONLINE -> "Platform Online"
+        PLATFORM_CASH -> "Platform Cash"
+        PLATFORM_SETTLEMENT -> "Platform Settlement"
+        CASH_ON_DELIVERY -> "Cash on Delivery"
     }
 }
 
@@ -85,6 +93,7 @@ data class FoodOrderByCustomer(
     val tableId: Long? = null,
     val orderStatus: OrderStatus,
     val paymentMethod: PaymentMethod? = null,
+    val cancelReason: String? = null,
     val foodOrders: List<FoodOrder> = emptyList(),
     val beverageOrders: List<BeverageOrder> = emptyList(),
     val discountType: DiscountType? = null,
@@ -124,7 +133,7 @@ data class FoodOrderByCustomerRequest(
     val id: Long? = null,
     val waiterId: Long,
     val waiterName: String? = null,
-    val orderStatus: OrderStatus = OrderStatus.ORDER_PLACED,
+    val orderStatus: OrderStatus,
     val foodOrders: List<FoodOrderRequest> = emptyList(),
     val beverageOrders: List<BeverageOrderRequest> = emptyList(),
     val discountType: DiscountType = DiscountType.PERCENTAGE,

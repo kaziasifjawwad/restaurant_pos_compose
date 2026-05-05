@@ -74,6 +74,9 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.TextButton
 import data.model.BeverageOrder
 import data.model.FoodOrder
 import data.model.FoodOrderByCustomer
@@ -664,6 +667,8 @@ private fun CheckoutEngine(
     }
     var selectedPaymentMethod by remember(order.id) { mutableStateOf(order.paymentMethod ?: defaultPaymentMethod) }
     var isCompleting by remember { mutableStateOf(false) }
+    var showCancelDialog by remember { mutableStateOf(false) }
+    var cancelReason by remember { mutableStateOf("") }
     val scope = rememberCoroutineScope()
     val subtotal = remember(order) {
         order.foodOrders.sumOf { it.foodPrice * it.foodQuantity } + order.beverageOrders.sumOf { it.price * it.amount }
@@ -739,9 +744,50 @@ private fun CheckoutEngine(
 
             TextButtonLikeCancel(
                 enabled = order.orderStatus != OrderStatus.PAID && order.orderStatus != OrderStatus.CANCELED,
-                onClick = { viewModel.onEvent(PosUiEvent.CancelOrder(order.id)) }
+                onClick = { showCancelDialog = true }
             )
         }
+    }
+
+    if (showCancelDialog) {
+        AlertDialog(
+            onDismissRequest = { showCancelDialog = false },
+            title = { Text("Cancel order?") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("Please write why this order is being canceled. This reason will be saved and shown in the single order view.")
+
+                    OutlinedTextField(
+                        value = cancelReason,
+                        onValueChange = { cancelReason = it },
+                        label = { Text("Cancel reason") },
+                        minLines = 3,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    enabled = cancelReason.isNotBlank(),
+                    onClick = {
+                        viewModel.onEvent(
+                            PosUiEvent.CancelOrder(
+                                orderId = order.id,
+                                reason = cancelReason
+                            )
+                        )
+                        showCancelDialog = false
+                    }
+                ) {
+                    Text("Confirm Cancel")
+                }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { showCancelDialog = false }) {
+                    Text("Keep Order")
+                }
+            }
+        )
     }
 }
 
@@ -838,6 +884,10 @@ private fun PaymentMethod.tileTitle(): String = when (this) {
     PaymentMethod.BKASH,
     PaymentMethod.ROCKET,
     PaymentMethod.NAGAD -> "Mobile Pay"
+    PaymentMethod.PLATFORM_ONLINE,
+    PaymentMethod.PLATFORM_CASH,
+    PaymentMethod.PLATFORM_SETTLEMENT,
+    PaymentMethod.CASH_ON_DELIVERY -> "Takeout Pay"
 }
 
 private fun PaymentMethod.tileIcon(): ImageVector = when (this) {
@@ -846,6 +896,10 @@ private fun PaymentMethod.tileIcon(): ImageVector = when (this) {
     PaymentMethod.BKASH,
     PaymentMethod.ROCKET,
     PaymentMethod.NAGAD -> Icons.Outlined.PhoneAndroid
+    PaymentMethod.PLATFORM_ONLINE,
+    PaymentMethod.PLATFORM_CASH,
+    PaymentMethod.PLATFORM_SETTLEMENT,
+    PaymentMethod.CASH_ON_DELIVERY -> Icons.Outlined.Payments
 }
 
 @Composable

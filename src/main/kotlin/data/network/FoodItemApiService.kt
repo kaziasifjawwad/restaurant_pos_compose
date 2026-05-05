@@ -337,7 +337,8 @@ class FoodItemApiService(
      */
     private suspend fun tryParseError(response: HttpResponse): String {
         return try {
-            response.body<ErrorResponse>().message
+            val errorResponse = response.body<ErrorResponse>()
+            errorResponse.message ?: errorResponse.error ?: "Unknown error"
         } catch (_: Exception) {
             "Unknown error"
         }

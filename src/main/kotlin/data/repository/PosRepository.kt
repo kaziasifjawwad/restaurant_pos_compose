@@ -52,64 +52,42 @@ class PosRepository(
     private val mutex = Mutex()
 
     suspend fun refreshOrders(): Result<List<FoodOrderShortInfo>> {
-        println("[$TAG] refreshOrders")
         val result = api.getActiveOrders()
         result.onSuccess { orders ->
-            mutex.withLock {
-                val newMap = orders.associateBy { it.id }
-                _ordersCache.value = newMap
-                println("[$TAG] Orders cache updated: ${newMap.size} orders")
-            }
+            mutex.withLock { _ordersCache.value = orders.associateBy { it.id } }
         }
         return result
     }
 
     suspend fun getOrderDetails(id: Long, forceRefresh: Boolean = false): Result<FoodOrderByCustomer> {
-        println("[$TAG] getOrderDetails: id=$id, forceRefresh=$forceRefresh")
         if (!forceRefresh) {
-            _orderDetailsCache.value[id]?.let { cached ->
-                println("[$TAG] Returning cached order details")
-                return Result.Success(cached)
-            }
+            _orderDetailsCache.value[id]?.let { cached -> return Result.Success(cached) }
         }
-
         val result = api.getOrderById(id)
         result.onSuccess { order ->
-            mutex.withLock {
-                _orderDetailsCache.value = _orderDetailsCache.value + (id to order)
-                println("[$TAG] Order details cached: id=$id")
-            }
+            mutex.withLock { _orderDetailsCache.value = _orderDetailsCache.value + (id to order) }
         }
         return result
     }
 
     suspend fun createOrder(request: FoodOrderByCustomerRequest): Result<FoodOrderShortInfo> {
-        println("[$TAG] createOrder")
         val result = api.createOrder(request)
-        result.onSuccess { order ->
-            mutex.withLock {
-                _ordersCache.value = _ordersCache.value + (order.id to order)
-                println("[$TAG] New order added to cache: id=${order.id}")
-            }
-        }
+        result.onSuccess { order -> mutex.withLock { _ordersCache.value = _ordersCache.value + (order.id to order) } }
         return result
     }
 
     suspend fun updateOrder(id: Long, request: FoodOrderByCustomerRequest): Result<FoodOrderShortInfo> {
-        println("[$TAG] updateOrder: id=$id")
         val result = api.updateOrder(id, request)
         result.onSuccess { order ->
             mutex.withLock {
                 _ordersCache.value = _ordersCache.value + (order.id to order)
                 _orderDetailsCache.value = _orderDetailsCache.value - id
-                println("[$TAG] Order updated in cache: id=${order.id}")
             }
         }
         return result
     }
 
     suspend fun printBill(orderId: Long): Result<FoodOrderByCustomer> {
-        println("[$TAG] printBill: orderId=$orderId")
         val result = api.setPlacedOrBillPrinted(orderId, OrderStatus.BILL_PRINTED)
         result.onSuccess { order -> updateOrderInCacheFromFull(order) }
         refreshOrders()
@@ -117,29 +95,25 @@ class PosRepository(
     }
 
     suspend fun markPaid(orderId: Long, paymentMethod: PaymentMethod): Result<FoodOrderByCustomer> {
-        println("[$TAG] markPaid: orderId=$orderId, paymentMethod=$paymentMethod")
         val result = api.setPaidOrCancel(orderId, OrderStatus.PAID, paymentMethod)
         result.onSuccess { removeOrderFromCache(orderId) }
         refreshOrders()
         return result
     }
 
-    suspend fun cancelOrder(orderId: Long): Result<FoodOrderByCustomer> {
-        println("[$TAG] cancelOrder: orderId=$orderId")
-        val result = api.setPaidOrCancel(orderId, OrderStatus.CANCELED)
+    suspend fun cancelOrder(orderId: Long, reason: String): Result<FoodOrderByCustomer> {
+        val result = api.setPaidOrCancel(orderId, OrderStatus.CANCELED, cancelReason = reason)
         result.onSuccess { removeOrderFromCache(orderId) }
         refreshOrders()
         return result
     }
 
     suspend fun refreshPaymentMethods(): Result<List<PaymentMethodResponse>> {
-        println("[$TAG] refreshPaymentMethods")
         val result = api.getPaymentMethods()
         result.onSuccess { paymentMethods ->
             _paymentMethodsCache.value = paymentMethods.sortedWith(
                 compareByDescending<PaymentMethodResponse> { it.defaultMethod }.thenBy { it.displayName }
             )
-            println("[$TAG] Payment methods loaded: ${paymentMethods.size}")
         }
         return result
     }
@@ -186,10 +160,8 @@ class PosRepository(
 
     private suspend fun updateOrderInCacheFromFull(order: FoodOrderByCustomer) {
         mutex.withLock {
-            val shortInfo = toShortInfo(order)
-            _ordersCache.value = _ordersCache.value + (order.id to shortInfo)
+            _ordersCache.value = _ordersCache.value + (order.id to toShortInfo(order))
             _orderDetailsCache.value = _orderDetailsCache.value - order.id
-            println("[$TAG] Order status updated in cache: id=${order.id}, status=${order.orderStatus}")
         }
     }
 
@@ -197,50 +169,22 @@ class PosRepository(
         mutex.withLock {
             _ordersCache.value = _ordersCache.value - orderId
             _orderDetailsCache.value = _orderDetailsCache.value - orderId
-            println("[$TAG] Order removed from cache: id=$orderId")
         }
     }
 
     suspend fun loadLookupData(): Result<Unit> {
-        println("[$TAG] loadLookupData")
-
-        refreshPaymentMethods().onError { error ->
-            println("[$TAG] Failed to load payment methods: ${error.message}")
-        }
-
-        api.getWaiters().onSuccess { waiters ->
-            _waitersCache.value = waiters
-            println("[$TAG] Waiters loaded: ${waiters.size}")
-        }.onError { error -> println("[$TAG] Failed to load waiters: ${error.message}") }
-
-        api.getTables().onSuccess { tables ->
-            _tablesCache.value = tables
-            println("[$TAG] Tables loaded: ${tables.size}")
-        }.onError { error -> println("[$TAG] Failed to load tables: ${error.message}") }
-
-        api.getFoodItemsShortInfo().onSuccess { items ->
-            _foodItemsCache.value = items
-            println("[$TAG] Food items loaded: ${items.size}")
-        }.onError { error -> println("[$TAG] Failed to load food items: ${error.message}") }
-
-        api.getBeverages().onSuccess { beverages ->
-            _beveragesCache.value = beverages
-            println("[$TAG] Beverages loaded: ${beverages.size}")
-        }.onError { error -> println("[$TAG] Failed to load beverages: ${error.message}") }
-
+        refreshPaymentMethods().onError { error -> println("[$TAG] Failed to load payment methods: ${error.message}") }
+        api.getWaiters().onSuccess { _waitersCache.value = it }.onError { error -> println("[$TAG] Failed to load waiters: ${error.message}") }
+        api.getTables().onSuccess { _tablesCache.value = it }.onError { error -> println("[$TAG] Failed to load tables: ${error.message}") }
+        api.getFoodItemsShortInfo().onSuccess { _foodItemsCache.value = it }.onError { error -> println("[$TAG] Failed to load food items: ${error.message}") }
+        api.getBeverages().onSuccess { _beveragesCache.value = it }.onError { error -> println("[$TAG] Failed to load beverages: ${error.message}") }
         return Result.Success(Unit)
     }
 
-    fun getFoodItemByNumber(itemNumber: Short): FoodItemShortInfo? {
-        return _foodItemsCache.value.find { it.itemNumber == itemNumber }
-    }
-
-    fun getBeverageById(beverageId: Long): BeverageResponse? {
-        return _beveragesCache.value.find { it.id == beverageId }
-    }
+    fun getFoodItemByNumber(itemNumber: Short): FoodItemShortInfo? = _foodItemsCache.value.find { it.itemNumber == itemNumber }
+    fun getBeverageById(beverageId: Long): BeverageResponse? = _beveragesCache.value.find { it.id == beverageId }
 
     fun clearCaches() {
-        println("[$TAG] clearCaches")
         _ordersCache.value = emptyMap()
         _orderDetailsCache.value = emptyMap()
         _waitersCache.value = emptyList()

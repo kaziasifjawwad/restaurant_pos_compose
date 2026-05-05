@@ -28,7 +28,6 @@ import androidx.compose.material.icons.filled.TableRestaurant
 import androidx.compose.material.icons.filled.TrendingDown
 import androidx.compose.material.icons.filled.TrendingFlat
 import androidx.compose.material.icons.filled.TrendingUp
-import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -41,9 +40,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.semantics.contentDescription
@@ -52,6 +51,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import data.model.DashboardFullResponse
+import kotlin.math.abs
 import kotlin.math.max
 
 @Composable
@@ -102,23 +102,27 @@ fun KpiMetricCard(metric: KpiMetric, modifier: Modifier = Modifier) {
     }
 
     Card(
-        modifier = modifier.height(118.dp).semantics { contentDescription = metric.contentDescription },
-        shape = RoundedCornerShape(16.dp),
+        modifier = modifier.height(132.dp).semantics { contentDescription = metric.contentDescription },
+        shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.10f))
     ) {
-        Row(modifier = Modifier.fillMaxSize().padding(12.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(
+            modifier = Modifier.fillMaxSize().padding(14.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.SpaceBetween) {
                 Text(metric.title, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
-                Text(metric.value, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(metric.value, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(icon, contentDescription = null, modifier = Modifier.size(15.dp), tint = if (negative) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary)
                     Spacer(Modifier.width(4.dp))
-                    Text(DashboardFormatters.deltaLabel(metric.deltaPercent), style = MaterialTheme.typography.labelSmall, color = if (negative) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary)
+                    Text(DashboardFormatters.deltaLabel(metric.deltaPercent), style = MaterialTheme.typography.labelSmall, color = if (negative) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
-                Text(metric.subtitle, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+                Text(metric.subtitle, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
-            MiniSparkline(values = metric.sparkline, modifier = Modifier.width(82.dp).height(54.dp))
+            SafeSparkline(values = metric.sparkline, modifier = Modifier.width(84.dp).height(52.dp))
         }
     }
 }
@@ -126,16 +130,16 @@ fun KpiMetricCard(metric: KpiMetric, modifier: Modifier = Modifier) {
 @Composable
 fun EmptyDashboardState(message: String, modifier: Modifier = Modifier) {
     Column(
-        modifier = modifier.fillMaxWidth().height(154.dp),
+        modifier = modifier.fillMaxWidth().height(178.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        Surface(shape = CircleShape, color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f), modifier = Modifier.size(54.dp)) {
+        Surface(shape = CircleShape, color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f), modifier = Modifier.size(60.dp)) {
             Box(contentAlignment = Alignment.Center) {
                 Icon(Icons.Filled.TableRestaurant, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
             }
         }
-        Spacer(Modifier.height(10.dp))
+        Spacer(Modifier.height(12.dp))
         Text(message, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
@@ -149,47 +153,57 @@ fun DashboardSkeleton() {
         animationSpec = infiniteRepeatable(animation = tween(850), repeatMode = RepeatMode.Reverse),
         label = "dashboard-shimmer-alpha"
     )
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         repeat(2) {
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-                repeat(4) { SkeletonBlock(Modifier.weight(1f).height(118.dp), alpha) }
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
+                repeat(4) { SkeletonBlock(Modifier.weight(1f).height(132.dp), alpha) }
             }
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-            repeat(3) { SkeletonBlock(Modifier.weight(1f).height(270.dp), alpha) }
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
+            repeat(3) { SkeletonBlock(Modifier.weight(1f).height(330.dp), alpha) }
         }
     }
 }
 
 @Composable
 private fun SkeletonBlock(modifier: Modifier, alpha: Float) {
-    Box(modifier = modifier.background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = alpha), RoundedCornerShape(16.dp)))
+    Box(modifier = modifier.clip(RoundedCornerShape(18.dp)).background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = alpha)))
 }
 
 @Composable
 fun AppDashboardCard(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
     Card(
-        modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(18.dp),
+        modifier = modifier.fillMaxWidth().clipToBounds(),
+        shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.10f))
     ) {
-        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) { content() }
+        Column(modifier = Modifier.padding(16.dp).clipToBounds(), verticalArrangement = Arrangement.spacedBy(10.dp)) { content() }
     }
 }
 
 @Composable
-private fun MiniSparkline(values: List<Double>, modifier: Modifier = Modifier) {
+private fun SafeSparkline(values: List<Double>, modifier: Modifier = Modifier) {
+    val cleanValues = values.filter { it.isFinite() }
+    val minValue = cleanValues.minOrNull() ?: 0.0
+    val maxValue = cleanValues.maxOrNull() ?: 0.0
+    val hasUsefulTrend = cleanValues.size >= 3 && abs(maxValue - minValue) > 0.0001
+
+    if (!hasUsefulTrend) {
+        Box(modifier = modifier.clipToBounds())
+        return
+    }
+
     val lineColor = MaterialTheme.colorScheme.primary
     val fillColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.10f)
-    Canvas(modifier = modifier.semantics { contentDescription = "Trend sparkline with ${values.size} points" }) {
-        if (values.size < 2) return@Canvas
-        val minValue = values.minOrNull() ?: 0.0
-        val maxValue = max(values.maxOrNull() ?: 0.0, minValue + 1.0)
-        val step = size.width / (values.size - 1)
-        val points = values.mapIndexed { index, value ->
-            val ratio = ((value - minValue) / (maxValue - minValue)).toFloat()
-            Offset(index * step, size.height - (ratio * size.height))
+    Canvas(modifier = modifier.clipToBounds().semantics { contentDescription = "Trend sparkline with ${cleanValues.size} points" }) {
+        val safeMax = max(maxValue, minValue + 1.0)
+        val step = size.width / (cleanValues.size - 1)
+        val verticalPadding = size.height * 0.12f
+        val usableHeight = size.height - (verticalPadding * 2f)
+        val points = cleanValues.mapIndexed { index, value ->
+            val ratio = ((value - minValue) / (safeMax - minValue)).toFloat().coerceIn(0f, 1f)
+            Offset(index * step, verticalPadding + usableHeight - (ratio * usableHeight))
         }
         val path = Path().apply {
             moveTo(points.first().x, points.first().y)
@@ -213,10 +227,10 @@ fun buildKpis(data: DashboardFullResponse): List<KpiMetric> {
         KpiMetric("Total Sales", DashboardFormatters.money(overview.totalSales), "Today ${DashboardFormatters.money(overview.todaySales)}", DashboardFormatters.deltaPercent(overview.todaySales, overview.yesterdaySales), trend, "Total sales ${DashboardFormatters.money(overview.totalSales)}"),
         KpiMetric("Paid Orders", overview.totalPaidOrders.toString(), "${overview.totalCanceledOrders} canceled", null, data.salesTimeline.map { it.paidOrderCount.toDouble() }, "Paid orders ${overview.totalPaidOrders}"),
         KpiMetric("Average Order", DashboardFormatters.money(overview.averageOrderValue), "Per paid order", null, trend, "Average order value ${DashboardFormatters.money(overview.averageOrderValue)}"),
-        KpiMetric("Cancellation", DashboardFormatters.percent(overview.cancellationRate), "Rate", null, listOf(overview.cancellationRate), "Cancellation rate ${DashboardFormatters.percent(overview.cancellationRate)}"),
-        KpiMetric("Active Orders", overview.activeOrders.toString(), "Open now", null, listOf(overview.activeOrders.toDouble()), "Active orders ${overview.activeOrders}"),
-        KpiMetric("Tables", "${overview.occupiedTables}/${overview.freeTables}", "Occupied / free", null, listOf(overview.occupiedTables.toDouble(), overview.freeTables.toDouble()), "Tables occupied ${overview.occupiedTables}, free ${overview.freeTables}"),
-        KpiMetric("Menu Items", (overview.totalFoodItems + overview.totalBeverages).toString(), "${overview.totalFoodItems} food, ${overview.totalBeverages} beverages", null, listOf(overview.totalFoodItems.toDouble(), overview.totalBeverages.toDouble()), "Menu items ${overview.totalFoodItems + overview.totalBeverages}"),
-        KpiMetric("Low Stock", overview.lowStockIngredientCount.toString(), "Ingredients", null, listOf(overview.lowStockIngredientCount.toDouble()), "Low stock ingredients ${overview.lowStockIngredientCount}")
+        KpiMetric("Cancellation", DashboardFormatters.percent(overview.cancellationRate), "Rate", null, emptyList(), "Cancellation rate ${DashboardFormatters.percent(overview.cancellationRate)}"),
+        KpiMetric("Active Orders", overview.activeOrders.toString(), "Open now", null, emptyList(), "Active orders ${overview.activeOrders}"),
+        KpiMetric("Tables", "${overview.occupiedTables}/${overview.freeTables}", "Occupied / free", null, emptyList(), "Tables occupied ${overview.occupiedTables}, free ${overview.freeTables}"),
+        KpiMetric("Menu Items", (overview.totalFoodItems + overview.totalBeverages).toString(), "${overview.totalFoodItems} food, ${overview.totalBeverages} beverages", null, emptyList(), "Menu items ${overview.totalFoodItems + overview.totalBeverages}"),
+        KpiMetric("Low Stock", overview.lowStockIngredientCount.toString(), "Ingredients", null, emptyList(), "Low stock ingredients ${overview.lowStockIngredientCount}")
     )
 }

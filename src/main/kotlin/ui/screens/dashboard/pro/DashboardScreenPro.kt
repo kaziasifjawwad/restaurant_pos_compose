@@ -245,7 +245,7 @@ private fun BoundedAdaptiveGrid(
     BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
         val columns = maxOf(1, (maxWidth / minCellWidth).toInt())
         val rows = ((itemCount + columns - 1) / columns).coerceAtLeast(1)
-        val gridHeight = (rowHeight * rows) + (10.dp * (rows - 1))
+        val gridHeight = (rowHeight * rows.toFloat()) + (10.dp * (rows - 1).toFloat())
         LazyVerticalGrid(
             columns = GridCells.Adaptive(minSize = minCellWidth),
             modifier = Modifier.fillMaxWidth().height(gridHeight),

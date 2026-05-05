@@ -3,7 +3,7 @@ package ui.navigation
 import androidx.compose.runtime.*
 import data.model.MenuItem
 import ui.screens.*
-import ui.screens.dashboard.DashboardScreen
+import ui.screens.dashboard.pro.DashboardScreenPro
 import ui.screens.pos.*
 import ui.viewmodel.PosViewModel
 
@@ -61,7 +61,7 @@ sealed class MenuDestination(val menuCode: String) {
 @Composable
 fun NavigationHost(currentMenuCode: String, currentMenuItem: MenuItem? = null) {
     when {
-        currentMenuCode == MenuDestination.Dashboard.menuCode -> DashboardScreen()
+        currentMenuCode == MenuDestination.Dashboard.menuCode -> DashboardScreenPro()
         currentMenuCode == MenuDestination.FoodItem.menuCode -> FoodItemNavigationHost()
         currentMenuCode == MenuDestination.Beverage.menuCode -> BeverageNavigationHost()
         MenuDestination.isPosMenu(currentMenuCode) -> PosNavigationHost()

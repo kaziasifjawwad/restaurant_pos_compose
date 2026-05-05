@@ -3,10 +3,12 @@ package ui.screens.dashboard.pro
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -24,6 +26,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import data.model.DashboardFullResponse
 import data.network.DashboardApiService
@@ -206,13 +209,7 @@ fun DashboardScreenPro() {
 
 @Composable
 private fun KpiAdaptiveGrid(metrics: List<KpiMetric>) {
-    LazyVerticalGrid(
-        columns = GridCells.Adaptive(minSize = 210.dp),
-        modifier = Modifier.fillMaxWidth(),
-        userScrollEnabled = false,
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
-    ) {
+    BoundedAdaptiveGrid(itemCount = metrics.size, minCellWidth = 210.dp, rowHeight = 118.dp) {
         items(metrics) { metric -> KpiMetricCard(metric) }
     }
 }
@@ -223,13 +220,7 @@ private fun DashboardAdaptiveThree(
     second: @Composable () -> Unit,
     third: @Composable () -> Unit
 ) {
-    LazyVerticalGrid(
-        columns = GridCells.Adaptive(minSize = 320.dp),
-        modifier = Modifier.fillMaxWidth(),
-        userScrollEnabled = false,
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
-    ) {
+    BoundedAdaptiveGrid(itemCount = 3, minCellWidth = 320.dp, rowHeight = 286.dp) {
         item { first() }
         item { second() }
         item { third() }
@@ -238,15 +229,31 @@ private fun DashboardAdaptiveThree(
 
 @Composable
 private fun DashboardAdaptiveTwo(left: @Composable () -> Unit, right: @Composable () -> Unit) {
-    LazyVerticalGrid(
-        columns = GridCells.Adaptive(minSize = 420.dp),
-        modifier = Modifier.fillMaxWidth(),
-        userScrollEnabled = false,
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
-    ) {
+    BoundedAdaptiveGrid(itemCount = 2, minCellWidth = 420.dp, rowHeight = 360.dp) {
         item { left() }
         item { right() }
+    }
+}
+
+@Composable
+private fun BoundedAdaptiveGrid(
+    itemCount: Int,
+    minCellWidth: Dp,
+    rowHeight: Dp,
+    content: androidx.compose.foundation.lazy.grid.LazyGridScope.() -> Unit
+) {
+    BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+        val columns = maxOf(1, (maxWidth / minCellWidth).toInt())
+        val rows = ((itemCount + columns - 1) / columns).coerceAtLeast(1)
+        val gridHeight = (rowHeight * rows) + (10.dp * (rows - 1))
+        LazyVerticalGrid(
+            columns = GridCells.Adaptive(minSize = minCellWidth),
+            modifier = Modifier.fillMaxWidth().height(gridHeight),
+            userScrollEnabled = false,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+            content = content
+        )
     }
 }
 

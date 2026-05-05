@@ -37,10 +37,12 @@ import java.time.LocalDate
 fun DashboardScreenPro() {
     val api = remember { DashboardApiService() }
     val scope = rememberCoroutineScope()
-    var draftFrom by remember { mutableStateOf(LocalDate.now()) }
-    var draftTo by remember { mutableStateOf(LocalDate.now()) }
-    var appliedFrom by remember { mutableStateOf(draftFrom) }
-    var appliedTo by remember { mutableStateOf(draftTo) }
+    val today = remember { LocalDate.now() }
+    val defaultFrom = remember(today) { today.minusDays(6) }
+    var draftFrom by remember { mutableStateOf(defaultFrom) }
+    var draftTo by remember { mutableStateOf(today) }
+    var appliedFrom by remember { mutableStateOf(defaultFrom) }
+    var appliedTo by remember { mutableStateOf(today) }
     var dashboard by remember { mutableStateOf<DashboardFullResponse?>(null) }
     var isLoading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -74,8 +76,8 @@ fun DashboardScreenPro() {
     Box(modifier = Modifier.fillMaxSize()) {
         LazyColumn(
             modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
-            contentPadding = PaddingValues(12.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+            contentPadding = PaddingValues(14.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             item {
                 DashboardHeaderCard(
@@ -93,9 +95,9 @@ fun DashboardScreenPro() {
                     dateRange = DashboardDateRange(draftFrom, draftTo, appliedFrom, appliedTo),
                     onFromChange = { draftFrom = it },
                     onToChange = { draftTo = it },
-                    onToday = { val today = LocalDate.now(); applyRange(today, today) },
-                    onLastSevenDays = { val today = LocalDate.now(); applyRange(today.minusDays(6), today) },
-                    onThisMonth = { val today = LocalDate.now(); applyRange(today.withDayOfMonth(1), today) },
+                    onToday = { val now = LocalDate.now(); applyRange(now, now) },
+                    onLastSevenDays = { val now = LocalDate.now(); applyRange(now.minusDays(6), now) },
+                    onThisMonth = { val now = LocalDate.now(); applyRange(now.withDayOfMonth(1), now) },
                     onApply = { applyRange(draftFrom, draftTo) }
                 )
             }
@@ -209,7 +211,7 @@ fun DashboardScreenPro() {
 
 @Composable
 private fun KpiAdaptiveGrid(metrics: List<KpiMetric>) {
-    BoundedAdaptiveGrid(itemCount = metrics.size, minCellWidth = 210.dp, rowHeight = 118.dp) {
+    BoundedAdaptiveGrid(itemCount = metrics.size, minCellWidth = 236.dp, rowHeight = 132.dp) {
         items(metrics) { metric -> KpiMetricCard(metric) }
     }
 }
@@ -220,7 +222,7 @@ private fun DashboardAdaptiveThree(
     second: @Composable () -> Unit,
     third: @Composable () -> Unit
 ) {
-    BoundedAdaptiveGrid(itemCount = 3, minCellWidth = 320.dp, rowHeight = 286.dp) {
+    BoundedAdaptiveGrid(itemCount = 3, minCellWidth = 360.dp, rowHeight = 338.dp) {
         item { first() }
         item { second() }
         item { third() }
@@ -229,7 +231,7 @@ private fun DashboardAdaptiveThree(
 
 @Composable
 private fun DashboardAdaptiveTwo(left: @Composable () -> Unit, right: @Composable () -> Unit) {
-    BoundedAdaptiveGrid(itemCount = 2, minCellWidth = 420.dp, rowHeight = 360.dp) {
+    BoundedAdaptiveGrid(itemCount = 2, minCellWidth = 460.dp, rowHeight = 380.dp) {
         item { left() }
         item { right() }
     }
@@ -245,13 +247,13 @@ private fun BoundedAdaptiveGrid(
     BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
         val columns = maxOf(1, (maxWidth / minCellWidth).toInt())
         val rows = ((itemCount + columns - 1) / columns).coerceAtLeast(1)
-        val gridHeight = (rowHeight * rows.toFloat()) + (10.dp * (rows - 1).toFloat())
+        val gridHeight = (rowHeight * rows.toFloat()) + (12.dp * (rows - 1).toFloat())
         LazyVerticalGrid(
             columns = GridCells.Adaptive(minSize = minCellWidth),
             modifier = Modifier.fillMaxWidth().height(gridHeight),
             userScrollEnabled = false,
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
             content = content
         )
     }

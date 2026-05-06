@@ -41,29 +41,45 @@ fun TakeoutAddFoodSection(
     }
 
     TakeoutEditorSection("Add Food Item") {
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedTextField(
-                value = itemInput,
-                onValueChange = { itemInput = it },
-                label = { Text("Item # or 1*3") },
-                supportingText = { Text("Press Enter to add. Blank package = default") },
-                modifier = Modifier.weight(1f).onKeyEvent { event ->
-                    if (event.key == Key.Enter && itemInput.isNotBlank()) {
-                        addFood()
-                        true
-                    } else false
-                },
-                singleLine = true
-            )
-            TakeoutDropdown(
-                label = "Package",
-                selected = selectedSize?.name ?: "",
-                items = sizes,
-                itemText = { it.name },
-                onSelect = { selectedSize = it },
-                modifier = Modifier.weight(1f),
-                enabled = parsed.size == 1 && sizes.isNotEmpty()
-            )
+        BoxWithConstraints {
+            val itemInputField: @Composable (Modifier) -> Unit = { modifier ->
+                OutlinedTextField(
+                    value = itemInput,
+                    onValueChange = { itemInput = it },
+                    label = { Text("Item # or 1*3") },
+                    supportingText = { Text("Press Enter to add. Blank package = default") },
+                    modifier = modifier.onKeyEvent { event ->
+                        if (event.key == Key.Enter && itemInput.isNotBlank()) {
+                            addFood()
+                            true
+                        } else false
+                    },
+                    singleLine = true
+                )
+            }
+            val packageDropdown: @Composable (Modifier) -> Unit = { modifier ->
+                TakeoutDropdown(
+                    label = "Package",
+                    selected = selectedSize?.name ?: "",
+                    items = sizes,
+                    itemText = { it.name },
+                    onSelect = { selectedSize = it },
+                    modifier = modifier,
+                    enabled = parsed.size == 1 && sizes.isNotEmpty()
+                )
+            }
+
+            if (maxWidth < 420.dp) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    itemInputField(Modifier.fillMaxWidth())
+                    packageDropdown(Modifier.fillMaxWidth())
+                }
+            } else {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    itemInputField(Modifier.weight(1f))
+                    packageDropdown(Modifier.weight(1f))
+                }
+            }
         }
         Spacer(Modifier.height(8.dp))
         Button(

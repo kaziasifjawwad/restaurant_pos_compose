@@ -10,6 +10,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -62,30 +63,52 @@ fun DashboardHeaderCard(
     onExportCsv: () -> Unit
 ) {
     AppDashboardCard {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text("Restaurant Analytics", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                Text(
-                    "$dateRangeLabel · Timezone: ${DashboardFormatters.timezoneLabel()}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+        BoxWithConstraints {
+            val actions: @Composable () -> Unit = {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilledTonalButton(onClick = onExportCsv, enabled = !isLoading) {
+                        Icon(Icons.Filled.Analytics, contentDescription = "Export CSV", modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text("Export CSV")
+                    }
+                    FilledTonalButton(onClick = onRefresh, enabled = !isLoading) {
+                        if (isLoading) CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                        else Icon(Icons.Filled.Refresh, contentDescription = "Refresh", modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text("Refresh")
+                    }
+                }
             }
-            FilledTonalButton(onClick = onExportCsv, enabled = !isLoading) {
-                Icon(Icons.Filled.Analytics, contentDescription = "Export CSV", modifier = Modifier.size(18.dp))
-                Spacer(Modifier.width(8.dp))
-                Text("Export CSV")
-            }
-            Spacer(Modifier.width(8.dp))
-            FilledTonalButton(onClick = onRefresh, enabled = !isLoading) {
-                if (isLoading) CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
-                else Icon(Icons.Filled.Refresh, contentDescription = "Refresh", modifier = Modifier.size(18.dp))
-                Spacer(Modifier.width(8.dp))
-                Text("Refresh")
+
+            if (maxWidth < 720.dp) {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Column {
+                        Text("Restaurant Analytics", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                        Text(
+                            "$dateRangeLabel · Timezone: ${DashboardFormatters.timezoneLabel()}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    actions()
+                }
+            } else {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Restaurant Analytics", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                        Text(
+                            "$dateRangeLabel · Timezone: ${DashboardFormatters.timezoneLabel()}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Spacer(Modifier.width(12.dp))
+                    actions()
+                }
             }
         }
     }

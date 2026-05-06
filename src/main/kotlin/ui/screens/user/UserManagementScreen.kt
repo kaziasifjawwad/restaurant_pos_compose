@@ -228,16 +228,37 @@ private fun UserFilterPanel(
     onReset: () -> Unit
 ) {
     Surface(Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.surface, border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.14f)), shadowElevation = 1.dp) {
-        Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text("FILTER", Modifier.width(54.dp), style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Black, color = UserMgGold)
-            CompactInput(email, onEmailChange, "Email", Icons.Outlined.Email, Modifier.weight(1.35f))
-            CompactInput(mobile, onMobileChange, "Mobile", Icons.Outlined.Phone, Modifier.weight(1.1f), KeyboardType.Number)
-            LockFilterButton(lockFilter, onLockChange, Modifier.width(155.dp))
-            OutlinedButton(onClick = onReset, modifier = Modifier.width(110.dp).height(56.dp), shape = RoundedCornerShape(28.dp), contentPadding = PaddingValues(horizontal = 18.dp)) {
-                Text("Reset", fontWeight = FontWeight.Bold)
-            }
-            Button(onClick = onApply, modifier = Modifier.width(130.dp).height(56.dp), shape = RoundedCornerShape(28.dp), contentPadding = PaddingValues(horizontal = 22.dp), colors = ButtonDefaults.buttonColors(containerColor = UserMgGold, contentColor = UserMgDark)) {
-                Text("Apply", fontWeight = FontWeight.Bold)
+        BoxWithConstraints(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp)) {
+            if (maxWidth < 900.dp) {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("FILTER", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Black, color = UserMgGold)
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                        CompactInput(email, onEmailChange, "Email", Icons.Outlined.Email, Modifier.weight(1.35f))
+                        CompactInput(mobile, onMobileChange, "Mobile", Icons.Outlined.Phone, Modifier.weight(1.1f), KeyboardType.Number)
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        LockFilterButton(lockFilter, onLockChange, Modifier.weight(1f))
+                        OutlinedButton(onClick = onReset, modifier = Modifier.weight(1f).height(56.dp), shape = RoundedCornerShape(28.dp), contentPadding = PaddingValues(horizontal = 18.dp)) {
+                            Text("Reset", fontWeight = FontWeight.Bold)
+                        }
+                        Button(onClick = onApply, modifier = Modifier.weight(1f).height(56.dp), shape = RoundedCornerShape(28.dp), contentPadding = PaddingValues(horizontal = 22.dp), colors = ButtonDefaults.buttonColors(containerColor = UserMgGold, contentColor = UserMgDark)) {
+                            Text("Apply", fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            } else {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text("FILTER", Modifier.width(54.dp), style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Black, color = UserMgGold)
+                    CompactInput(email, onEmailChange, "Email", Icons.Outlined.Email, Modifier.weight(1.35f))
+                    CompactInput(mobile, onMobileChange, "Mobile", Icons.Outlined.Phone, Modifier.weight(1.1f), KeyboardType.Number)
+                    LockFilterButton(lockFilter, onLockChange, Modifier.width(155.dp))
+                    OutlinedButton(onClick = onReset, modifier = Modifier.width(110.dp).height(56.dp), shape = RoundedCornerShape(28.dp), contentPadding = PaddingValues(horizontal = 18.dp)) {
+                        Text("Reset", fontWeight = FontWeight.Bold)
+                    }
+                    Button(onClick = onApply, modifier = Modifier.width(130.dp).height(56.dp), shape = RoundedCornerShape(28.dp), contentPadding = PaddingValues(horizontal = 22.dp), colors = ButtonDefaults.buttonColors(containerColor = UserMgGold, contentColor = UserMgDark)) {
+                        Text("Apply", fontWeight = FontWeight.Bold)
+                    }
+                }
             }
         }
     }

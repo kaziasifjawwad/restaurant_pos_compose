@@ -51,9 +51,18 @@ fun TakeoutSourceCustomerSection(
             singleLine = true
         )
         Spacer(Modifier.height(8.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedTextField(customerName, onCustomerNameChange, label = { Text("Customer Name") }, modifier = Modifier.weight(1f), singleLine = true)
-            OutlinedTextField(customerPhone, onCustomerPhoneChange, label = { Text("Customer Phone") }, modifier = Modifier.weight(1f), singleLine = true)
+        BoxWithConstraints {
+            if (maxWidth < 420.dp) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(customerName, onCustomerNameChange, label = { Text("Customer Name") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                    OutlinedTextField(customerPhone, onCustomerPhoneChange, label = { Text("Customer Phone") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                }
+            } else {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(customerName, onCustomerNameChange, label = { Text("Customer Name") }, modifier = Modifier.weight(1f), singleLine = true)
+                    OutlinedTextField(customerPhone, onCustomerPhoneChange, label = { Text("Customer Phone") }, modifier = Modifier.weight(1f), singleLine = true)
+                }
+            }
         }
         Spacer(Modifier.height(8.dp))
         OutlinedTextField(

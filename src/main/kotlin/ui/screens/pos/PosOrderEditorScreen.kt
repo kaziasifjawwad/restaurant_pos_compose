@@ -340,65 +340,71 @@ fun PosOrderEditorScreen(
                             }
                         }
 
-                        Column(
+                        LazyColumn(
                             modifier = Modifier.weight(0.35f).fillMaxHeight().padding(16.dp),
                             verticalArrangement = Arrangement.spacedBy(16.dp)
                         ) {
-                            PosEditorFormSection(title = "Waiter & Table") {
-                                PosDropdown(label = "Waiter", selected = selectedWaiter?.displayName ?: "", items = uiState.waiters, itemText = { it.displayName }, onSelect = { selectedWaiter = it })
-                                Spacer(modifier = Modifier.height(8.dp))
-                                PosDropdown(label = "Table", selected = selectedTable?.let { "Table #${it.tableNumber}" } ?: "", items = uiState.tables, itemText = { "Table #${it.tableNumber}" }, onSelect = { selectedTable = it })
-                            }
-
-                            PosEditorFormSection(title = "Add Food Item") {
-                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.Top) {
-                                    OutlinedTextField(
-                                        value = foodSerialInput,
-                                        onValueChange = { foodSerialInput = it },
-                                        label = { Text("Item # or 1*3") },
-                                        supportingText = { Text(if (foodSerialInput.trim().contains(' ')) "Multiple items use default packages" else "Blank package = default") },
-                                        modifier = Modifier.weight(0.5f).onPreviewKeyEvent { event ->
-                                            if (event.key == Key.Enter && event.type == KeyEventType.KeyUp) {
-                                                addFoodItem(); true
-                                            } else false
-                                        },
-                                        singleLine = true,
-                                        shape = RoundedCornerShape(10.dp),
-                                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done)
-                                    )
-                                    PosDropdown(label = "Package", selected = selectedFoodSize?.name ?: "", items = availablePackageSizes, itemText = { it.name }, onSelect = { selectedFoodSize = it }, modifier = Modifier.weight(0.5f), enabled = isPackageDropdownEnabled)
-                                }
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Button(onClick = { addFoodItem() }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(10.dp), enabled = foodSerialInput.isNotBlank()) {
-                                    Icon(Icons.Default.Add, null, Modifier.size(18.dp)); Spacer(modifier = Modifier.width(8.dp)); Text("Add Food")
+                            item {
+                                PosEditorFormSection(title = "Waiter & Table") {
+                                    PosDropdown(label = "Waiter", selected = selectedWaiter?.displayName ?: "", items = uiState.waiters, itemText = { it.displayName }, onSelect = { selectedWaiter = it })
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    PosDropdown(label = "Table", selected = selectedTable?.let { "Table #${it.tableNumber}" } ?: "", items = uiState.tables, itemText = { "Table #${it.tableNumber}" }, onSelect = { selectedTable = it })
                                 }
                             }
 
-                            PosEditorFormSection(title = "Add Beverage") {
-                                PosDropdown(label = "Beverage", selected = selectedBeverage?.name ?: "", items = uiState.beverages, itemText = { it.name }, onSelect = { selectedBeverage = it; selectedBeveragePrice = null })
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.Top) {
-                                    PosDropdown(label = "Size", selected = selectedBeveragePrice?.let { "${it.quantity}${it.unit.name.first()}" } ?: "", items = selectedBeverage?.prices ?: emptyList(), itemText = { "${it.quantity} ${it.unit.name}" }, onSelect = { selectedBeveragePrice = it }, modifier = Modifier.weight(1f))
-                                    OutlinedTextField(value = beverageAmountInput, onValueChange = { if (it.all { c -> c.isDigit() }) beverageAmountInput = it }, label = { Text("Qty") }, modifier = Modifier.width(80.dp), singleLine = true, shape = RoundedCornerShape(10.dp), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
-                                }
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Button(onClick = { addBeverageItem() }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(10.dp), enabled = selectedBeverage != null && selectedBeveragePrice != null) {
-                                    Icon(Icons.Default.Add, null, Modifier.size(18.dp)); Spacer(modifier = Modifier.width(8.dp)); Text("Add Beverage")
+                            item {
+                                PosEditorFormSection(title = "Add Food Item") {
+                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.Top) {
+                                        OutlinedTextField(
+                                            value = foodSerialInput,
+                                            onValueChange = { foodSerialInput = it },
+                                            label = { Text("Item # or 1*3") },
+                                            supportingText = { Text(if (foodSerialInput.trim().contains(' ')) "Multiple items use default packages" else "Blank package = default") },
+                                            modifier = Modifier.weight(0.5f).onPreviewKeyEvent { event ->
+                                                if (event.key == Key.Enter && event.type == KeyEventType.KeyUp) {
+                                                    addFoodItem(); true
+                                                } else false
+                                            },
+                                            singleLine = true,
+                                            shape = RoundedCornerShape(10.dp),
+                                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done)
+                                        )
+                                        PosDropdown(label = "Package", selected = selectedFoodSize?.name ?: "", items = availablePackageSizes, itemText = { it.name }, onSelect = { selectedFoodSize = it }, modifier = Modifier.weight(0.5f), enabled = isPackageDropdownEnabled)
+                                    }
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Button(onClick = { addFoodItem() }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(10.dp), enabled = foodSerialInput.isNotBlank()) {
+                                        Icon(Icons.Default.Add, null, Modifier.size(18.dp)); Spacer(modifier = Modifier.width(8.dp)); Text("Add Food")
+                                    }
                                 }
                             }
 
-                            Spacer(modifier = Modifier.weight(1f))
+                            item {
+                                PosEditorFormSection(title = "Add Beverage") {
+                                    PosDropdown(label = "Beverage", selected = selectedBeverage?.name ?: "", items = uiState.beverages, itemText = { it.name }, onSelect = { selectedBeverage = it; selectedBeveragePrice = null })
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.Top) {
+                                        PosDropdown(label = "Size", selected = selectedBeveragePrice?.let { "${it.quantity}${it.unit.name.first()}" } ?: "", items = selectedBeverage?.prices ?: emptyList(), itemText = { "${it.quantity} ${it.unit.name}" }, onSelect = { selectedBeveragePrice = it }, modifier = Modifier.weight(1f))
+                                        OutlinedTextField(value = beverageAmountInput, onValueChange = { if (it.all { c -> c.isDigit() }) beverageAmountInput = it }, label = { Text("Qty") }, modifier = Modifier.width(80.dp), singleLine = true, shape = RoundedCornerShape(10.dp), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+                                    }
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Button(onClick = { addBeverageItem() }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(10.dp), enabled = selectedBeverage != null && selectedBeveragePrice != null) {
+                                        Icon(Icons.Default.Add, null, Modifier.size(18.dp)); Spacer(modifier = Modifier.width(8.dp)); Text("Add Beverage")
+                                    }
+                                }
+                            }
 
-                            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                                OutlinedButton(onClick = { viewModel.onEvent(PosUiEvent.CloseEditor); onNavigateBack() }, modifier = Modifier.weight(1f), shape = RoundedCornerShape(12.dp)) { Text("Discard") }
-                                Button(
-                                    onClick = { submitOrder() },
-                                    modifier = Modifier.weight(1f),
-                                    shape = RoundedCornerShape(12.dp),
-                                    enabled = selectedWaiter != null && selectedTable != null && (foodOrders.isNotEmpty() || beverageOrders.isNotEmpty()) && !uiState.isSaving
-                                ) {
-                                    if (uiState.isSaving) CircularProgressIndicator(modifier = Modifier.size(18.dp), color = MaterialTheme.colorScheme.onPrimary, strokeWidth = 2.dp) else Icon(Icons.Default.Check, null, Modifier.size(18.dp))
-                                    Spacer(modifier = Modifier.width(8.dp)); Text(if (isEditMode) "Update" else "Submit")
+                            item {
+                                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                    OutlinedButton(onClick = { viewModel.onEvent(PosUiEvent.CloseEditor); onNavigateBack() }, modifier = Modifier.weight(1f), shape = RoundedCornerShape(12.dp)) { Text("Discard") }
+                                    Button(
+                                        onClick = { submitOrder() },
+                                        modifier = Modifier.weight(1f),
+                                        shape = RoundedCornerShape(12.dp),
+                                        enabled = selectedWaiter != null && selectedTable != null && (foodOrders.isNotEmpty() || beverageOrders.isNotEmpty()) && !uiState.isSaving
+                                    ) {
+                                        if (uiState.isSaving) CircularProgressIndicator(modifier = Modifier.size(18.dp), color = MaterialTheme.colorScheme.onPrimary, strokeWidth = 2.dp) else Icon(Icons.Default.Check, null, Modifier.size(18.dp))
+                                        Spacer(modifier = Modifier.width(8.dp)); Text(if (isEditMode) "Update" else "Submit")
+                                    }
                                 }
                             }
                         }

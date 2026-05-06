@@ -31,7 +31,7 @@ import data.model.MenuItem
 import data.network.ApiService
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import ui.components.RestaurantTopAppBar
+import ui.components.ResponsiveTopAppBar
 import ui.components.SidebarMenu
 import ui.navigation.NavigationHost
 import ui.theme.AppAnimations
@@ -71,21 +71,31 @@ fun MainScreen(onLogout: () -> Unit) {
                     animationSpec = tween(AppAnimations.DURATION_NORMAL, easing = AppAnimations.EaseOutQuart)
                 ) + fadeIn(animationSpec = tween(AppAnimations.DURATION_NORMAL))
             ) {
-                RestaurantTopAppBar(
-                    onMenuClick = { isSidebarVisible = !isSidebarVisible },
-                    onThemeToggle = { ThemeState.setDarkTheme(it) },
-                    onLogoutClick = { showLogoutDialog = true },
-                    showSidebarToggle = true
-                )
+                BoxWithConstraints {
+                    ResponsiveTopAppBar(
+                        screenWidth = maxWidth.value.toInt(),
+                        onMenuClick = { isSidebarVisible = !isSidebarVisible },
+                        onThemeToggle = { ThemeState.setDarkTheme(it) },
+                        onLogoutClick = { showLogoutDialog = true },
+                        showSidebarToggle = true
+                    )
+                }
             }
         },
         content = { innerPadding ->
-            Row(
+            BoxWithConstraints(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(innerPadding)
                     .background(MaterialTheme.colorScheme.background)
             ) {
+                val sidebarWidth = when {
+                    maxWidth >= 1500.dp -> 280.dp
+                    maxWidth >= 1200.dp -> 240.dp
+                    else -> 216.dp
+                }
+
+                Row(modifier = Modifier.fillMaxSize()) {
                 // Animated Sidebar
                 AnimatedVisibility(
                     visible = isSidebarVisible && isContentVisible,
@@ -100,7 +110,7 @@ fun MainScreen(onLogout: () -> Unit) {
                 ) {
                     SidebarMenu(
                         modifier = Modifier
-                            .width(280.dp)
+                            .width(sidebarWidth)
                             .fillMaxHeight(),
                         onMenuItemClick = { menuItem ->
                             selectedMenuItem = menuItem
@@ -148,6 +158,7 @@ fun MainScreen(onLogout: () -> Unit) {
                             WelcomeScreen()
                         }
                     }
+                }
                 }
             }
         }

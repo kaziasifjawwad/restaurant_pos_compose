@@ -2,6 +2,7 @@ package ui.screens.dashboard.pro
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -37,17 +38,34 @@ fun DateFilterCard(
     onApply: () -> Unit
 ) {
     AppDashboardCard {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            DashboardDateButton("From", dateRange.draftFrom, onFromChange, Modifier.weight(1f))
-            DashboardDateButton("To", dateRange.draftTo, onToChange, Modifier.weight(1f))
-            OutlinedButton(onClick = onToday) { Text("Today") }
-            OutlinedButton(onClick = onLastSevenDays) { Text("Last 7 Days") }
-            OutlinedButton(onClick = onThisMonth) { Text("This Month") }
-            Button(onClick = onApply, enabled = dateRange.hasChanges) { Text("Apply") }
+        BoxWithConstraints {
+            if (maxWidth < 900.dp) {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                        DashboardDateButton("From", dateRange.draftFrom, onFromChange, Modifier.weight(1f))
+                        DashboardDateButton("To", dateRange.draftTo, onToChange, Modifier.weight(1f))
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                        OutlinedButton(onClick = onToday, modifier = Modifier.weight(1f)) { Text("Today") }
+                        OutlinedButton(onClick = onLastSevenDays, modifier = Modifier.weight(1f)) { Text("Last 7 Days") }
+                        OutlinedButton(onClick = onThisMonth, modifier = Modifier.weight(1f)) { Text("This Month") }
+                        Button(onClick = onApply, enabled = dateRange.hasChanges, modifier = Modifier.weight(1f)) { Text("Apply") }
+                    }
+                }
+            } else {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    DashboardDateButton("From", dateRange.draftFrom, onFromChange, Modifier.weight(1f))
+                    DashboardDateButton("To", dateRange.draftTo, onToChange, Modifier.weight(1f))
+                    OutlinedButton(onClick = onToday) { Text("Today") }
+                    OutlinedButton(onClick = onLastSevenDays) { Text("Last 7 Days") }
+                    OutlinedButton(onClick = onThisMonth) { Text("This Month") }
+                    Button(onClick = onApply, enabled = dateRange.hasChanges) { Text("Apply") }
+                }
+            }
         }
     }
 }

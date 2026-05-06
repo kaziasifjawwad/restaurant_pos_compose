@@ -23,16 +23,34 @@ fun TakeoutRiderChargeSection(
     onSpecialInstructionChange: (String) -> Unit
 ) {
     TakeoutEditorSection("Rider, Charges & Instruction") {
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedTextField(riderName, onRiderNameChange, label = { Text("Rider Name") }, modifier = Modifier.weight(1f), singleLine = true)
-            OutlinedTextField(riderPhone, onRiderPhoneChange, label = { Text("Rider Phone") }, modifier = Modifier.weight(1f), singleLine = true)
+        BoxWithConstraints {
+            if (maxWidth < 420.dp) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(riderName, onRiderNameChange, label = { Text("Rider Name") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                    OutlinedTextField(riderPhone, onRiderPhoneChange, label = { Text("Rider Phone") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                }
+            } else {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(riderName, onRiderNameChange, label = { Text("Rider Name") }, modifier = Modifier.weight(1f), singleLine = true)
+                    OutlinedTextField(riderPhone, onRiderPhoneChange, label = { Text("Rider Phone") }, modifier = Modifier.weight(1f), singleLine = true)
+                }
+            }
         }
         Spacer(Modifier.height(8.dp))
         OutlinedTextField(riderPickupCode, onRiderPickupCodeChange, label = { Text("Rider Pickup Code") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
         Spacer(Modifier.height(8.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedTextField(packagingCharge, onPackagingChargeChange, label = { Text("Packaging Charge") }, modifier = Modifier.weight(1f), singleLine = true)
-            OutlinedTextField(deliveryCharge, onDeliveryChargeChange, label = { Text("Delivery Charge") }, modifier = Modifier.weight(1f), singleLine = true)
+        BoxWithConstraints {
+            if (maxWidth < 420.dp) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(packagingCharge, onPackagingChargeChange, label = { Text("Packaging Charge") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                    OutlinedTextField(deliveryCharge, onDeliveryChargeChange, label = { Text("Delivery Charge") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                }
+            } else {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(packagingCharge, onPackagingChargeChange, label = { Text("Packaging Charge") }, modifier = Modifier.weight(1f), singleLine = true)
+                    OutlinedTextField(deliveryCharge, onDeliveryChargeChange, label = { Text("Delivery Charge") }, modifier = Modifier.weight(1f), singleLine = true)
+                }
+            }
         }
         Spacer(Modifier.height(8.dp))
         OutlinedTextField(specialInstruction, onSpecialInstructionChange, label = { Text("Special Instruction") }, modifier = Modifier.fillMaxWidth(), minLines = 3)

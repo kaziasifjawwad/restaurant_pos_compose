@@ -18,6 +18,8 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.FoodBank
 import androidx.compose.material.icons.outlined.Inventory2
 import androidx.compose.material.icons.outlined.LocalDining
+import androidx.compose.material.icons.outlined.ManageAccounts
+import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.Restaurant
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -68,7 +70,7 @@ fun SidebarMenu(
                 error = "Failed to load menu: ${e.message}"
             } finally {
                 isLoading = false
-                delay(100) // Small delay for smooth entrance
+                delay(100)
                 isVisible = true
             }
         }
@@ -77,10 +79,7 @@ fun SidebarMenu(
     Column(
         modifier = modifier
             .fillMaxHeight()
-            .shadow(
-                elevation = 8.dp,
-                spotColor = Color.Black.copy(alpha = 0.1f)
-            )
+            .shadow(elevation = 8.dp, spotColor = Color.Black.copy(alpha = 0.1f))
             .background(
                 brush = Brush.verticalGradient(
                     colors = listOf(
@@ -90,7 +89,6 @@ fun SidebarMenu(
                 )
             )
     ) {
-        // Sidebar Header
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -129,8 +127,7 @@ fun SidebarMenu(
                 }
             }
         }
-        
-        // Divider with gradient
+
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -148,9 +145,7 @@ fun SidebarMenu(
         when {
             isLoading -> {
                 Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(32.dp),
+                    modifier = Modifier.fillMaxWidth().padding(32.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Column(
@@ -172,9 +167,7 @@ fun SidebarMenu(
             }
             error != null -> {
                 Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
+                    modifier = Modifier.fillMaxWidth().padding(16.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
@@ -193,9 +186,7 @@ fun SidebarMenu(
             }
             else -> {
                 LazyColumn(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 8.dp),
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
                     verticalArrangement = Arrangement.spacedBy(2.dp)
                 ) {
                     itemsIndexed(menuItems) { index, menuItem ->
@@ -238,11 +229,10 @@ private fun MenuItemView(
     var isExpanded by remember { mutableStateOf(false) }
     val hasChildren = menuItem.children.isNotEmpty()
     val icon = getIconForMenuCode(menuItem.menuCode)
-    
+
     val interactionSource = remember { MutableInteractionSource() }
     val isHovered by interactionSource.collectIsHoveredAsState()
-    
-    // Animated states
+
     val backgroundColor by animateColorAsState(
         targetValue = when {
             isSelected -> MaterialTheme.colorScheme.primaryContainer
@@ -251,12 +241,12 @@ private fun MenuItemView(
         },
         animationSpec = tween(AppAnimations.DURATION_FAST)
     )
-    
+
     val indicatorWidth by animateDpAsState(
         targetValue = if (isSelected) 4.dp else 0.dp,
         animationSpec = tween(AppAnimations.DURATION_FAST)
     )
-    
+
     val contentColor by animateColorAsState(
         targetValue = when {
             isSelected -> MaterialTheme.colorScheme.onPrimaryContainer
@@ -265,12 +255,12 @@ private fun MenuItemView(
         },
         animationSpec = tween(AppAnimations.DURATION_FAST)
     )
-    
+
     val iconRotation by animateFloatAsState(
         targetValue = if (isExpanded) 90f else 0f,
         animationSpec = tween(AppAnimations.DURATION_FAST, easing = AppAnimations.EaseOutQuart)
     )
-    
+
     val elevation by animateFloatAsState(
         targetValue = if (isHovered && !isSelected) 2f else 0f,
         animationSpec = tween(AppAnimations.DURATION_FAST)
@@ -300,7 +290,6 @@ private fun MenuItemView(
                 ),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Selection indicator
             if (isSelected) {
                 Box(
                     modifier = Modifier
@@ -311,8 +300,7 @@ private fun MenuItemView(
                 )
                 Spacer(modifier = Modifier.width(8.dp))
             }
-            
-            // Icon
+
             if (icon != null) {
                 Icon(
                     imageVector = icon,
@@ -323,7 +311,6 @@ private fun MenuItemView(
                 Spacer(modifier = Modifier.width(12.dp))
             }
 
-            // Text
             Text(
                 text = menuItem.name,
                 style = if (isSelected) ExtendedTypography.sidebarItemSelected else ExtendedTypography.sidebarItem,
@@ -331,38 +318,25 @@ private fun MenuItemView(
                 color = contentColor
             )
 
-            // Expand/collapse indicator
             if (hasChildren) {
                 Icon(
                     imageVector = Icons.Filled.ChevronRight,
                     contentDescription = if (isExpanded) "Collapse" else "Expand",
-                    modifier = Modifier
-                        .size(18.dp)
-                        .rotate(iconRotation),
+                    modifier = Modifier.size(18.dp).rotate(iconRotation),
                     tint = contentColor.copy(alpha = 0.6f)
                 )
             }
         }
 
-        // Children with animated visibility
         AnimatedVisibility(
             visible = isExpanded && hasChildren,
             enter = expandVertically(
                 animationSpec = tween(AppAnimations.DURATION_NORMAL, easing = AppAnimations.EaseOutQuart)
-            ) + fadeIn(
-                animationSpec = tween(AppAnimations.DURATION_NORMAL)
-            ),
-            exit = shrinkVertically(
-                animationSpec = tween(AppAnimations.DURATION_FAST)
-            ) + fadeOut(
-                animationSpec = tween(AppAnimations.DURATION_FAST)
-            )
+            ) + fadeIn(animationSpec = tween(AppAnimations.DURATION_NORMAL)),
+            exit = shrinkVertically(animationSpec = tween(AppAnimations.DURATION_FAST)) +
+                fadeOut(animationSpec = tween(AppAnimations.DURATION_FAST))
         ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(start = 8.dp)
-            ) {
+            Column(modifier = Modifier.fillMaxWidth().padding(start = 8.dp)) {
                 menuItem.children.forEach { childItem ->
                     MenuItemView(
                         menuItem = childItem,
@@ -380,6 +354,8 @@ private fun getIconForMenuCode(menuCode: String): ImageVector? {
         "INVENTORY", "INGREDIENTS" -> Icons.Outlined.Inventory2
         "FOOD_INFORMATION", "FOOD_ITEM" -> Icons.Outlined.FoodBank
         "BEVERAGE" -> Icons.Outlined.LocalDining
+        "USER_MANAGEMENT" -> Icons.Outlined.ManageAccounts
+        "USERS", "USER_CREDENTIAL" -> Icons.Outlined.Person
         else -> null
     }
 }
@@ -393,17 +369,17 @@ fun MenuItemCard(
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val isHovered by interactionSource.collectIsHoveredAsState()
-    
+
     val elevation by animateDpAsState(
         targetValue = if (isHovered) 8.dp else 2.dp,
         animationSpec = tween(AppAnimations.DURATION_FAST)
     )
-    
+
     val scale by animateFloatAsState(
         targetValue = if (isHovered) 1.02f else 1f,
         animationSpec = tween(AppAnimations.DURATION_FAST, easing = AppAnimations.EaseOutQuart)
     )
-    
+
     Card(
         onClick = onClick,
         modifier = modifier
@@ -422,9 +398,7 @@ fun MenuItemCard(
         )
     ) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             val icon = getIconForMenuCode(menuItem.menuCode)
@@ -436,9 +410,7 @@ fun MenuItemCard(
                     Icon(
                         imageVector = icon,
                         contentDescription = menuItem.name,
-                        modifier = Modifier
-                            .padding(8.dp)
-                            .size(24.dp),
+                        modifier = Modifier.padding(8.dp).size(24.dp),
                         tint = MaterialTheme.colorScheme.primary
                     )
                 }
@@ -459,7 +431,7 @@ fun MenuItemCard(
                     )
                 }
             }
-            
+
             Icon(
                 imageVector = Icons.Default.ChevronRight,
                 contentDescription = null,

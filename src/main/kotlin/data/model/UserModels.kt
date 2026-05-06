@@ -2,54 +2,46 @@ package data.model
 
 import kotlinx.serialization.Serializable
 
-// ==================== User Registration Models ====================
-
-/**
- * POST /user/registration
- * Fields mirror RegistrationRequest.java on the backend.
- */
 @Serializable
 data class UserRegistrationRequest(
     val email: String,
     val password: String,
     val firstName: String,
-    val lastName: String,
+    val lastName: String = "",
     val mobileNumber: String,
-    val presetAddress: String,
-    val permanentAddress: String,
+    val presetAddress: String = "",
+    val permanentAddress: String = "",
     val roleId: List<Long> = emptyList()
 )
 
-/**
- * 201 success body:
- * { "email": "...", "message": "successfully created user with username : ..." }
- */
 @Serializable
 data class UserRegistrationResponse(
     val email: String = "",
     val message: String = ""
 )
 
-/**
- * 4xx / 5xx error shape from the backend:
- * { "timestamp": "...", "message": "...", "path": "..." }
- */
+@Serializable
+data class EmailLookupResponse(
+    val email: String = "",
+    val exists: Boolean = false,
+    val message: String = ""
+)
+
 @Serializable
 data class ApiErrorResponse(
     val timestamp: String = "",
     val message: String = "",
-    val path: String = ""
+    val path: String = "",
+    val errorCode: String? = null
 )
-
-// ==================== User Management Models ====================
 
 @Serializable
 data class PageResponse<T>(
-    val content: List<T>,
-    val totalElements: Long,
-    val totalPages: Int,
-    val size: Int,
-    val number: Int
+    val content: List<T> = emptyList(),
+    val totalElements: Long = 0,
+    val totalPages: Int = 0,
+    val size: Int = 0,
+    val number: Int = 0
 )
 
 @Serializable
@@ -83,9 +75,9 @@ data class UserInformationResponseWithRole(
 data class UserUpdateRequest(
     val email: String,
     val firstName: String,
-    val lastName: String,
+    val lastName: String = "",
     val mobileNumber: String,
-    val presetAddress: String,
-    val permanentAddress: String,
+    val presetAddress: String = "",
+    val permanentAddress: String = "",
     val roleId: List<Long> = emptyList()
 )

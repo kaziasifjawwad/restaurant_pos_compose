@@ -1,6 +1,8 @@
 package ui.viewmodel
 
 import data.model.*
+import data.print.PosPrinterService
+import data.repository.PosRepository
 import data.repository.TakeoutRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -55,7 +57,8 @@ sealed class TakeoutUiEvent {
 }
 
 class TakeoutViewModel(
-    private val repository: TakeoutRepository = TakeoutRepository.instance
+    private val repository: TakeoutRepository = TakeoutRepository.instance,
+    private val posRepository: PosRepository = PosRepository.getInstance()
 ) {
     private val scope = CoroutineScope(Dispatchers.Default)
     private val _uiState = MutableStateFlow(TakeoutUiState())
@@ -133,19 +136,79 @@ class TakeoutViewModel(
 
     private fun saveOrder(request: TakeoutOrderRequest) = scope.launch {
         _uiState.update { it.copy(isSaving = true, errorMessage = null) }
+        val isEditMode = _uiState.value.editorMode is TakeoutUiState.EditorMode.Edit
         val result = when (val mode = _uiState.value.editorMode) {
             is TakeoutUiState.EditorMode.Edit -> repository.updateOrder(mode.orderId, request)
             else -> repository.createOrder(request)
         }
-        result.onSuccess { _uiState.update { it.copy(successMessage = "Takeout order saved", editorMode = TakeoutUiState.EditorMode.Closed) } }
+        result.onSuccess { savedOrder ->
+            val printMessage = if (!isEditMode) printKitchenMemoForNewOrder(savedOrder.id) else null
+            _uiState.update {
+                it.copy(
+                    successMessage = when {
+                        isEditMode -> "Takeout order saved"
+                        printMessage != null -> "Takeout order saved. $printMessage"
+                        else -> "Takeout order saved and kitchen memo printed"
+                    },
+                    editorMode = TakeoutUiState.EditorMode.Closed
+                )
+            }
+        }
             .onError { error -> _uiState.update { it.copy(errorMessage = error.message) } }
         _uiState.update { it.copy(isSaving = false) }
     }
 
     private fun updateStatus(orderId: Long, status: TakeoutOrderStatus) = scope.launch {
+        val printer = if (status == TakeoutOrderStatus.COMPLETED) ensureDefaultPrinter() else null
         repository.updateStatus(orderId, TakeoutStatusUpdateRequest(status))
-            .onSuccess { order -> _uiState.update { it.copy(successMessage = "Status updated", selectedOrder = order) } }
+            .onSuccess { order ->
+                val printMessage = if (status == TakeoutOrderStatus.COMPLETED) printCashMemoAfterCompleted(order, printer) else null
+                _uiState.update {
+                    it.copy(
+                        successMessage = when {
+                            status == TakeoutOrderStatus.COMPLETED && printMessage == null -> "Status updated and cash memo printed"
+                            status == TakeoutOrderStatus.COMPLETED -> "Status updated. $printMessage"
+                            else -> "Status updated"
+                        },
+                        selectedOrder = order
+                    )
+                }
+            }
             .onError { error -> _uiState.update { it.copy(errorMessage = error.message) } }
+    }
+
+    private suspend fun printKitchenMemoForNewOrder(orderId: Long): String? {
+        val printer = ensureDefaultPrinter()
+            ?: return "Kitchen memo was not printed because no default printer is configured."
+
+        val order = when (val detailsResult = repository.getOrderDetails(orderId, forceRefresh = true)) {
+            is Result.Success -> detailsResult.data
+            is Result.Error -> return "Kitchen memo was not printed: ${detailsResult.message}"
+        }
+
+        return PosPrinterService.printTakeoutKitchenMemo(order, printer.printerModelName)
+            .fold(
+                onSuccess = { null },
+                onFailure = { error -> "Kitchen memo was not printed: ${error.message ?: "printer error"}" }
+            )
+    }
+
+    private suspend fun ensureDefaultPrinter(): PrinterResponse? {
+        posRepository.refreshPrinters()
+        val printer = posRepository.defaultPrinter.value
+        if (printer == null) {
+            _uiState.update { it.copy(errorMessage = "No default printer configured. Please configure a printer first.") }
+        }
+        return printer
+    }
+
+    private fun printCashMemoAfterCompleted(order: TakeoutOrderResponse, printer: PrinterResponse?): String? {
+        if (printer == null) return "Cash memo was not printed because no default printer is configured."
+        return PosPrinterService.printTakeoutCashMemo(order, printer.printerModelName)
+            .fold(
+                onSuccess = { null },
+                onFailure = { error -> "Cash memo was not printed: ${error.message ?: "printer error"}" }
+            )
     }
 
     private fun updatePayment(orderId: Long, request: TakeoutPaymentUpdateRequest) = scope.launch {

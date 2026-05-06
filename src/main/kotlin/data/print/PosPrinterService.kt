@@ -5,6 +5,11 @@ import data.model.DiscountType
 import data.model.FoodOrder
 import data.model.FoodOrderByCustomer
 import data.model.OrderStatus
+import data.model.TakeoutBeverageOrderResponse
+import data.model.TakeoutFoodOrderResponse
+import data.model.TakeoutOrderResponse
+import data.model.TakeoutOrderStatus
+import data.model.TakeoutPaymentStatus
 import java.io.ByteArrayOutputStream
 import java.nio.charset.Charset
 import java.text.DecimalFormat
@@ -29,6 +34,14 @@ object PosPrinterService {
             lines = buildCashMemoLines(order)
         )
 
+    fun printTakeoutCashMemo(order: TakeoutOrderResponse, printerModelName: String): Result<Unit> =
+        printEscPos(
+            printerModelName = printerModelName,
+            jobName = "Takeout Cash Memo #${order.id}",
+            copies = 2,
+            lines = buildTakeoutCashMemoLines(order)
+        )
+
     fun printBill(order: FoodOrderByCustomer, printerModelName: String): Result<Unit> =
         printEscPos(
             printerModelName = printerModelName,
@@ -43,6 +56,14 @@ object PosPrinterService {
             jobName = "Kitchen Memo #${order.id}",
             copies = 1,
             lines = buildKitchenMemoLines(order)
+        )
+
+    fun printTakeoutKitchenMemo(order: TakeoutOrderResponse, printerModelName: String): Result<Unit> =
+        printEscPos(
+            printerModelName = printerModelName,
+            jobName = "Takeout Kitchen Memo #${order.id}",
+            copies = 1,
+            lines = buildTakeoutKitchenMemoLines(order)
         )
 
     private fun printEscPos(
@@ -101,6 +122,16 @@ object PosPrinterService {
         footer("Thank you")
     }
 
+    private fun buildTakeoutCashMemoLines(order: TakeoutOrderResponse): List<ReceiptLine> = buildList {
+        takeoutHeader(order, "TAKEOUT CASH MEMO")
+        addTakeoutItemsTable(order, includePrice = true)
+        addTakeoutTotals(order)
+        add(ReceiptLine.pair("Status", order.orderStatus.displayName))
+        add(ReceiptLine.pair("Payment", order.paymentStatus.displayName))
+        add(ReceiptLine.pair("Method", order.paymentMethod?.displayName ?: "N/A"))
+        footer("Customer Copy")
+    }
+
     private fun buildKitchenMemoLines(order: FoodOrderByCustomer): List<ReceiptLine> = buildList {
         receiptHeader(order, "KITCHEN MEMO")
         add(ReceiptLine.separator())
@@ -132,8 +163,52 @@ object PosPrinterService {
         footer("Prepare with care")
     }
 
+    private fun buildTakeoutKitchenMemoLines(order: TakeoutOrderResponse): List<ReceiptLine> = buildList {
+        takeoutHeader(order, "TAKEOUT KITCHEN MEMO")
+        if (!order.specialInstruction.isNullOrBlank()) {
+            add(ReceiptLine.separator())
+            add(ReceiptLine.bold("SPECIAL INSTRUCTION"))
+            addWrapped(order.specialInstruction)
+        }
+        add(ReceiptLine.separator())
+        add(ReceiptLine.bold("FOOD"))
+        val foodGroups = order.foodOrders
+            .groupBy { "${safe(it.foodName, "Food #${it.itemNumber}")}|${it.foodSize?.name.orEmpty()}|${it.packagingInstruction.orEmpty()}" }
+            .values
+            .map { group ->
+                val first = group.first()
+                val qty = group.sumOf { it.foodQuantity }
+                buildString {
+                    append(qty).append(" x ").append(safe(first.foodName, "Food #${first.itemNumber}"))
+                    first.foodSize?.let { append(" (").append(it.name).append(")") }
+                    if (!first.packagingInstruction.isNullOrBlank()) append(" - ").append(first.packagingInstruction)
+                }
+            }
+        if (foodGroups.isEmpty()) add(ReceiptLine.text("No food items"))
+        foodGroups.forEach { addWrapped(it) }
+
+        if (order.beverageOrders.isNotEmpty()) {
+            add(ReceiptLine.separator())
+            add(ReceiptLine.bold("BEVERAGE"))
+            val beverageGroups = order.beverageOrders
+                .groupBy { "${safe(it.beverageName, "Beverage #${it.beverageId}")}|${it.quantity}|${it.unit?.name.orEmpty()}|${it.packagingInstruction.orEmpty()}" }
+                .values
+                .map { group ->
+                    val first = group.first()
+                    val qty = group.sumOf { it.amount }
+                    buildString {
+                        append(qty).append(" x ").append(takeoutBeverageDisplayName(first))
+                        if (!first.packagingInstruction.isNullOrBlank()) append(" - ").append(first.packagingInstruction)
+                    }
+                }
+            beverageGroups.forEach { addWrapped(it) }
+        }
+        footer("Prepare with care")
+    }
+
     private fun MutableList<ReceiptLine>.receiptHeader(order: FoodOrderByCustomer, title: String) {
-        add(ReceiptLine.center("Restaurant POS", bold = true, doubleSize = true))
+        add(ReceiptLine.center("Unique Restaurant", bold = true, doubleSize = true))
+        add(ReceiptLine.center("& Party Center", bold = true, doubleSize = true))
         add(ReceiptLine.center("29 Tonugonj Lane"))
         add(ReceiptLine.center("Katherpool, Sutrapur, Dhaka-1100"))
         add(ReceiptLine.center("+8801886937480 | +8801716261536"))
@@ -144,6 +219,23 @@ object PosPrinterService {
         add(ReceiptLine.pair("Date", order.createdDateTime?.takeIf { it.isNotBlank() } ?: LocalDateTime.now().format(dateTimeFormat)))
         add(ReceiptLine.pair("Table", "No. ${order.tableNumber}"))
         add(ReceiptLine.pair("Waiter", order.waiterName ?: "Unknown"))
+    }
+
+    private fun MutableList<ReceiptLine>.takeoutHeader(order: TakeoutOrderResponse, title: String) {
+        add(ReceiptLine.center("Unique Restaurant", bold = true, doubleSize = true))
+        add(ReceiptLine.center("& Party Center", bold = true, doubleSize = true))
+        add(ReceiptLine.center("29 Tonugonj Lane"))
+        add(ReceiptLine.center("Katherpool, Sutrapur, Dhaka-1100"))
+        add(ReceiptLine.center("+8801886937480 | +8801716261536"))
+        add(ReceiptLine.separator())
+        add(ReceiptLine.center(title, bold = true))
+        add(ReceiptLine.separator())
+        add(ReceiptLine.pair("Order", order.takeoutOrderNumber ?: "#${order.id.toString().padStart(5, '0')}"))
+        add(ReceiptLine.pair("Date", order.createdDateTime?.takeIf { it.isNotBlank() } ?: LocalDateTime.now().format(dateTimeFormat)))
+        add(ReceiptLine.pair("Medium", order.mediumName ?: order.mediumCode))
+        if (!order.externalOrderId.isNullOrBlank()) add(ReceiptLine.pair("External", order.externalOrderId))
+        if (!order.customerName.isNullOrBlank()) add(ReceiptLine.pair("Customer", order.customerName))
+        if (!order.riderName.isNullOrBlank()) add(ReceiptLine.pair("Rider", order.riderName))
     }
 
     private fun MutableList<ReceiptLine>.addItemsTable(order: FoodOrderByCustomer, includePrice: Boolean) {
@@ -165,6 +257,28 @@ object PosPrinterService {
         order.beverageOrders.sortedBy { safe(it.beverageName, "") }.forEach { item ->
             val total = beverageTotal(item)
             addItemLine(beverageDisplayName(item), item.amount.toString(), money(item.price), money(total), includePrice)
+        }
+    }
+
+    private fun MutableList<ReceiptLine>.addTakeoutItemsTable(order: TakeoutOrderResponse, includePrice: Boolean) {
+        add(ReceiptLine.separator())
+        if (includePrice) {
+            add(ReceiptLine.text("Item".padEnd(18) + "Qty".padStart(4) + "Price".padStart(9) + "Total".padStart(11)))
+        } else {
+            add(ReceiptLine.text(pair("Item", "Qty", MAX_CHARS)))
+        }
+        add(ReceiptLine.separator())
+
+        order.foodOrders.sortedWith(compareBy<TakeoutFoodOrderResponse> { it.itemNumber ?: 0 }.thenBy { it.foodSize?.name.orEmpty() }).forEach { item ->
+            val name = safe(item.foodName, "Food #${item.itemNumber}")
+            val lineTotal = item.lineTotal.takeIf { it > 0.0 } ?: (item.foodPrice * item.foodQuantity)
+            addItemLine(name, item.foodQuantity.toString(), money(item.foodPrice), money(lineTotal), includePrice)
+            item.foodSize?.let { addWrapped("  ${it.name}") }
+        }
+
+        order.beverageOrders.sortedBy { safe(it.beverageName, "") }.forEach { item ->
+            val lineTotal = item.lineTotal.takeIf { it > 0.0 } ?: (item.price * item.amount)
+            addItemLine(takeoutBeverageDisplayName(item), item.amount.toString(), money(item.price), money(lineTotal), includePrice)
         }
     }
 
@@ -219,6 +333,16 @@ object PosPrinterService {
         add(ReceiptLine.pair("TOTAL", money(grandTotal), bold = true))
     }
 
+    private fun MutableList<ReceiptLine>.addTakeoutTotals(order: TakeoutOrderResponse) {
+        add(ReceiptLine.separator())
+        add(ReceiptLine.pair("Subtotal", money(order.subtotalAmount)))
+        add(ReceiptLine.pair("Discount", "-${money(order.discountAmount)}"))
+        if (order.packagingCharge > 0.0) add(ReceiptLine.pair("Packaging", money(order.packagingCharge)))
+        if (order.deliveryCharge > 0.0) add(ReceiptLine.pair("Delivery", money(order.deliveryCharge)))
+        add(ReceiptLine.separator())
+        add(ReceiptLine.pair("TOTAL", money(order.totalAmount), bold = true))
+    }
+
     private fun MutableList<ReceiptLine>.footer(text: String) {
         add(ReceiptLine.separator())
         add(ReceiptLine.center(text))
@@ -267,6 +391,27 @@ object PosPrinterService {
         OrderStatus.CANCELED -> "Canceled"
     }
 
+    private val TakeoutOrderStatus.displayName: String get() = when (this) {
+        TakeoutOrderStatus.ORDER_RECEIVED -> "Order Received"
+        TakeoutOrderStatus.ACCEPTED -> "Accepted"
+        TakeoutOrderStatus.PREPARING -> "Preparing"
+        TakeoutOrderStatus.READY_FOR_PICKUP -> "Ready for Pickup"
+        TakeoutOrderStatus.PICKED_UP -> "Picked Up"
+        TakeoutOrderStatus.COMPLETED -> "Completed"
+        TakeoutOrderStatus.CANCELED -> "Canceled"
+        TakeoutOrderStatus.REJECTED -> "Rejected"
+        TakeoutOrderStatus.FAILED -> "Failed"
+    }
+
+    private val TakeoutPaymentStatus.displayName: String get() = when (this) {
+        TakeoutPaymentStatus.UNPAID -> "Unpaid"
+        TakeoutPaymentStatus.PAID -> "Paid"
+        TakeoutPaymentStatus.SETTLEMENT_PENDING -> "Settlement Pending"
+        TakeoutPaymentStatus.SETTLED -> "Settled"
+        TakeoutPaymentStatus.REFUNDED -> "Refunded"
+        TakeoutPaymentStatus.FAILED -> "Failed"
+    }
+
     private fun pair(left: String, right: String, width: Int): String {
         val safeRight = right.take(width)
         val maxLeft = (width - safeRight.length - 1).coerceAtLeast(0)
@@ -276,6 +421,12 @@ object PosPrinterService {
     }
 
     private fun beverageDisplayName(item: BeverageOrder): String {
+        val unit = item.unit?.name.orEmpty()
+        val size = listOf(formatNum(item.quantity), unit.takeIf { it.isNotBlank() }).filterNotNull().joinToString(" ")
+        return "${safe(item.beverageName, "Beverage #${item.beverageId}")} ($size)".trim()
+    }
+
+    private fun takeoutBeverageDisplayName(item: TakeoutBeverageOrderResponse): String {
         val unit = item.unit?.name.orEmpty()
         val size = listOf(formatNum(item.quantity), unit.takeIf { it.isNotBlank() }).filterNotNull().joinToString(" ")
         return "${safe(item.beverageName, "Beverage #${item.beverageId}")} ($size)".trim()

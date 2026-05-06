@@ -156,13 +156,13 @@ class PosViewModel(
                 else -> repository.createOrder(request)
             }
             result.onSuccess { savedOrder ->
-                val printMessage = if (!isEditMode) printCashMemoForNewOrder(savedOrder.id) else null
+                val printMessage = if (!isEditMode) printKitchenMemoForNewOrder(savedOrder.id) else null
                 _uiState.update {
                     it.copy(
                         successMessage = when {
                             isEditMode -> "Order updated successfully"
                             printMessage != null -> "Order created successfully. $printMessage"
-                            else -> "Order created successfully and cash memo printed"
+                            else -> "Order created successfully and kitchen memo printed"
                         },
                         editorMode = PosUiState.EditorMode.Closed,
                         selectedOrder = null
@@ -173,19 +173,19 @@ class PosViewModel(
         }
     }
 
-    private suspend fun printCashMemoForNewOrder(orderId: Long): String? {
+    private suspend fun printKitchenMemoForNewOrder(orderId: Long): String? {
         val printer = ensureDefaultPrinter()
-            ?: return "Cash memo was not printed because no default printer is configured."
+            ?: return "Kitchen memo was not printed because no default printer is configured."
 
         val order = when (val detailsResult = repository.getOrderDetails(orderId, forceRefresh = true)) {
             is Result.Success -> detailsResult.data
-            is Result.Error -> return "Cash memo was not printed: ${detailsResult.message}"
+            is Result.Error -> return "Kitchen memo was not printed: ${detailsResult.message}"
         }
 
-        return PosPrinterService.printCashMemoTwice(order, printer.printerModelName)
+        return PosPrinterService.printKitchenMemo(order, printer.printerModelName)
             .fold(
                 onSuccess = { null },
-                onFailure = { error -> "Cash memo was not printed: ${error.message ?: "printer error"}" }
+                onFailure = { error -> "Kitchen memo was not printed: ${error.message ?: "printer error"}" }
             )
     }
 
@@ -233,8 +233,17 @@ class PosViewModel(
     private fun completeOrder(orderId: Long, paymentMethod: PaymentMethod) {
         scope.launch {
             _uiState.update { it.copy(errorMessage = null) }
+            val printer = ensureDefaultPrinter()
             repository.markPaid(orderId, paymentMethod)
-                .onSuccess { _uiState.update { it.copy(successMessage = "Order completed successfully", selectedOrder = null) } }
+                .onSuccess { order ->
+                    val printMessage = printCashMemoAfterPaid(order, printer)
+                    _uiState.update {
+                        it.copy(
+                            successMessage = if (printMessage == null) "Order completed successfully and cash memo printed" else "Order completed successfully. $printMessage",
+                            selectedOrder = null
+                        )
+                    }
+                }
                 .onError { error -> _uiState.update { it.copy(errorMessage = error.message) } }
         }
     }
@@ -242,10 +251,28 @@ class PosViewModel(
     private fun markPaid(orderId: Long, paymentMethod: PaymentMethod) {
         scope.launch {
             _uiState.update { it.copy(errorMessage = null) }
+            val printer = ensureDefaultPrinter()
             repository.markPaid(orderId, paymentMethod)
-                .onSuccess { _uiState.update { it.copy(successMessage = "Order marked as paid", selectedOrder = null) } }
+                .onSuccess { order ->
+                    val printMessage = printCashMemoAfterPaid(order, printer)
+                    _uiState.update {
+                        it.copy(
+                            successMessage = if (printMessage == null) "Order marked as paid and cash memo printed" else "Order marked as paid. $printMessage",
+                            selectedOrder = null
+                        )
+                    }
+                }
                 .onError { error -> _uiState.update { it.copy(errorMessage = error.message) } }
         }
+    }
+
+    private fun printCashMemoAfterPaid(order: FoodOrderByCustomer, printer: PrinterResponse?): String? {
+        if (printer == null) return "Cash memo was not printed because no default printer is configured."
+        return PosPrinterService.printCashMemoTwice(order, printer.printerModelName)
+            .fold(
+                onSuccess = { null },
+                onFailure = { error -> "Cash memo was not printed: ${error.message ?: "printer error"}" }
+            )
     }
 
     private fun cancelOrder(orderId: Long, reason: String) {

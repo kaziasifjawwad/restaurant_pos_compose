@@ -1,6 +1,7 @@
 package ui.viewmodel
 
 import data.model.*
+import data.print.PosPrinterService
 import data.repository.PosRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -23,6 +24,8 @@ data class PosUiState(
     val foodItems: List<FoodItemShortInfo> = emptyList(),
     val beverages: List<BeverageResponse> = emptyList(),
     val paymentMethods: List<PaymentMethodResponse> = emptyList(),
+    val printers: List<PrinterResponse> = emptyList(),
+    val defaultPrinter: PrinterResponse? = null,
     val errorMessage: String? = null,
     val successMessage: String? = null
 ) {
@@ -44,6 +47,7 @@ sealed class PosUiEvent {
     object LoadLookupData : PosUiEvent()
     data class SaveOrder(val request: FoodOrderByCustomerRequest) : PosUiEvent()
     object RefreshPaymentMethods : PosUiEvent()
+    object RefreshPrinters : PosUiEvent()
     data class PrintBill(val orderId: Long) : PosUiEvent()
     data class PrintKitchenMemo(val orderId: Long) : PosUiEvent()
     data class CompleteOrder(val orderId: Long, val paymentMethod: PaymentMethod) : PosUiEvent()
@@ -73,6 +77,8 @@ class PosViewModel(
         scope.launch { repository.foodItemsCache.collect { items -> _uiState.update { it.copy(foodItems = items) } } }
         scope.launch { repository.beveragesCache.collect { beverages -> _uiState.update { it.copy(beverages = beverages) } } }
         scope.launch { repository.paymentMethodsCache.collect { paymentMethods -> _uiState.update { it.copy(paymentMethods = paymentMethods) } } }
+        scope.launch { repository.printersCache.collect { printers -> _uiState.update { it.copy(printers = printers) } } }
+        scope.launch { repository.defaultPrinter.collect { printer -> _uiState.update { it.copy(defaultPrinter = printer) } } }
     }
 
     fun onEvent(event: PosUiEvent) {
@@ -87,6 +93,7 @@ class PosViewModel(
             is PosUiEvent.LoadLookupData -> loadLookupData()
             is PosUiEvent.SaveOrder -> saveOrder(event.request)
             is PosUiEvent.RefreshPaymentMethods -> refreshPaymentMethods()
+            is PosUiEvent.RefreshPrinters -> refreshPrinters()
             is PosUiEvent.PrintBill -> printBill(event.orderId)
             is PosUiEvent.PrintKitchenMemo -> printKitchenMemo(event.orderId)
             is PosUiEvent.CompleteOrder -> completeOrder(event.orderId, event.paymentMethod)
@@ -135,6 +142,10 @@ class PosViewModel(
         scope.launch { repository.refreshPaymentMethods().onError { error -> _uiState.update { it.copy(errorMessage = error.message) } } }
     }
 
+    private fun refreshPrinters() {
+        scope.launch { repository.refreshPrinters().onError { error -> _uiState.update { it.copy(errorMessage = error.message) } } }
+    }
+
     private fun saveOrder(request: FoodOrderByCustomerRequest) {
         scope.launch {
             _uiState.update { it.copy(isSaving = true, errorMessage = null) }
@@ -156,8 +167,46 @@ class PosViewModel(
         }
     }
 
-    private fun printBill(orderId: Long) { _uiState.update { it.copy(errorMessage = null, successMessage = "Bill printed successfully") } }
-    private fun printKitchenMemo(orderId: Long) { _uiState.update { it.copy(successMessage = "Kitchen memo printed successfully") } }
+    private fun printBill(orderId: Long) {
+        scope.launch {
+            _uiState.update { it.copy(errorMessage = null) }
+            val printer = ensureDefaultPrinter() ?: return@launch
+            val orderResult = repository.printBill(orderId)
+            orderResult
+                .onSuccess { order ->
+                    PosPrinterService.printBill(order, printer.printerModelName)
+                        .onSuccess { _uiState.update { it.copy(successMessage = "Bill printed using ${printer.printerModelName}") } }
+                        .onFailure { error -> _uiState.update { it.copy(errorMessage = error.message ?: "Failed to print bill") } }
+                }
+                .onError { error -> _uiState.update { it.copy(errorMessage = error.message) } }
+        }
+    }
+
+    private fun printKitchenMemo(orderId: Long) {
+        scope.launch {
+            _uiState.update { it.copy(errorMessage = null) }
+            val printer = ensureDefaultPrinter() ?: return@launch
+            repository.getOrderDetails(orderId, forceRefresh = true)
+                .onSuccess { order ->
+                    PosPrinterService.printKitchenMemo(order, printer.printerModelName)
+                        .onSuccess { _uiState.update { it.copy(successMessage = "Kitchen memo printed using ${printer.printerModelName}") } }
+                        .onFailure { error -> _uiState.update { it.copy(errorMessage = error.message ?: "Failed to print kitchen memo") } }
+                }
+                .onError { error -> _uiState.update { it.copy(errorMessage = error.message) } }
+        }
+    }
+
+    private suspend fun ensureDefaultPrinter(): PrinterResponse? {
+        var printer = _uiState.value.defaultPrinter
+        if (printer == null) {
+            repository.refreshPrinters()
+            printer = _uiState.value.defaultPrinter
+        }
+        if (printer == null) {
+            _uiState.update { it.copy(errorMessage = "No default printer configured. Please configure a printer first.") }
+        }
+        return printer
+    }
 
     private fun completeOrder(orderId: Long, paymentMethod: PaymentMethod) {
         scope.launch {

@@ -49,6 +49,12 @@ class PosRepository(
     private val _paymentMethodsCache = MutableStateFlow<List<PaymentMethodResponse>>(emptyList())
     val paymentMethodsCache: StateFlow<List<PaymentMethodResponse>> = _paymentMethodsCache.asStateFlow()
 
+    private val _printersCache = MutableStateFlow<List<PrinterResponse>>(emptyList())
+    val printersCache: StateFlow<List<PrinterResponse>> = _printersCache.asStateFlow()
+
+    private val _defaultPrinter = MutableStateFlow<PrinterResponse?>(null)
+    val defaultPrinter: StateFlow<PrinterResponse?> = _defaultPrinter.asStateFlow()
+
     private val mutex = Mutex()
 
     suspend fun refreshOrders(): Result<List<FoodOrderShortInfo>> {
@@ -144,6 +150,59 @@ class PosRepository(
         return result
     }
 
+    suspend fun refreshPrinters(): Result<List<PrinterResponse>> {
+        val result = api.getPrinters()
+        result.onSuccess { printers -> setPrinterCaches(printers) }
+        return result
+    }
+
+    suspend fun getAllPrinters(): Result<List<PrinterResponse>> {
+        val result = api.getAllPrinters()
+        result.onSuccess { printers -> setPrinterCaches(printers) }
+        return result
+    }
+
+    suspend fun refreshDefaultPrinter(): Result<PrinterResponse?> {
+        val result = api.getDefaultPrinter()
+        result.onSuccess { printer -> _defaultPrinter.value = printer }
+        return result
+    }
+
+    suspend fun createPrinter(request: PrinterRequest): Result<PrinterResponse> {
+        val result = api.createPrinter(request)
+        result.onSuccess { refreshPrinters() }
+        return result
+    }
+
+    suspend fun updatePrinter(id: Long, request: PrinterRequest): Result<PrinterResponse> {
+        val result = api.updatePrinter(id, request)
+        result.onSuccess { refreshPrinters() }
+        return result
+    }
+
+    suspend fun setDefaultPrinter(id: Long): Result<PrinterResponse> {
+        val result = api.setDefaultPrinter(id)
+        result.onSuccess { printer ->
+            _defaultPrinter.value = printer
+            refreshPrinters()
+        }
+        return result
+    }
+
+    suspend fun deletePrinter(id: Long): Result<Unit> {
+        val result = api.deletePrinter(id)
+        result.onSuccess { refreshPrinters() }
+        return result
+    }
+
+    private fun setPrinterCaches(printers: List<PrinterResponse>) {
+        val sorted = printers.sortedWith(
+            compareByDescending<PrinterResponse> { it.defaultPrinter }.thenBy { it.printerModelName }
+        )
+        _printersCache.value = sorted
+        _defaultPrinter.value = sorted.firstOrNull { it.active && it.defaultPrinter }
+    }
+
     private fun toShortInfo(order: FoodOrderByCustomer): FoodOrderShortInfo {
         return FoodOrderShortInfo(
             id = order.id,
@@ -174,10 +233,17 @@ class PosRepository(
 
     suspend fun loadLookupData(): Result<Unit> {
         refreshPaymentMethods().onError { error -> println("[$TAG] Failed to load payment methods: ${error.message}") }
+        refreshPrinters().onError { error -> println("[$TAG] Failed to load printers: ${error.message}") }
         api.getWaiters().onSuccess { _waitersCache.value = it }.onError { error -> println("[$TAG] Failed to load waiters: ${error.message}") }
         api.getTables().onSuccess { _tablesCache.value = it }.onError { error -> println("[$TAG] Failed to load tables: ${error.message}") }
         api.getFoodItemsShortInfo().onSuccess { _foodItemsCache.value = it }.onError { error -> println("[$TAG] Failed to load food items: ${error.message}") }
         api.getBeverages().onSuccess { _beveragesCache.value = it }.onError { error -> println("[$TAG] Failed to load beverages: ${error.message}") }
+        return Result.Success(Unit)
+    }
+
+    suspend fun loadStartupConfiguration(): Result<Unit> {
+        refreshPaymentMethods().onError { error -> println("[$TAG] Failed to load payment methods: ${error.message}") }
+        refreshPrinters().onError { error -> println("[$TAG] Failed to load printers: ${error.message}") }
         return Result.Success(Unit)
     }
 
@@ -192,5 +258,7 @@ class PosRepository(
         _foodItemsCache.value = emptyList()
         _beveragesCache.value = emptyList()
         _paymentMethodsCache.value = emptyList()
+        _printersCache.value = emptyList()
+        _defaultPrinter.value = null
     }
 }

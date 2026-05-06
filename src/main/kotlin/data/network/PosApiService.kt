@@ -170,6 +170,80 @@ class PosApiService(
         }
     }
 
+    suspend fun getPrinters(): Result<List<PrinterResponse>> = executeRequest {
+        val token = requireToken()
+        val response: HttpResponse = client.get("$baseUrl/pos/printers") {
+            header(HttpHeaders.Authorization, "Bearer $token")
+            accept(ContentType.Application.Json)
+        }
+        handleResponse<List<PrinterResponse>>(response, "Failed to load printers")
+    }
+
+    suspend fun getAllPrinters(): Result<List<PrinterResponse>> = executeRequest {
+        val token = requireToken()
+        val response: HttpResponse = client.get("$baseUrl/pos/printers/all") {
+            header(HttpHeaders.Authorization, "Bearer $token")
+            accept(ContentType.Application.Json)
+        }
+        handleResponse<List<PrinterResponse>>(response, "Failed to load printers")
+    }
+
+    suspend fun getDefaultPrinter(): Result<PrinterResponse?> = executeRequest {
+        val token = requireToken()
+        val response: HttpResponse = client.get("$baseUrl/pos/printers/default") {
+            header(HttpHeaders.Authorization, "Bearer $token")
+            accept(ContentType.Application.Json)
+        }
+        when (response.status) {
+            HttpStatusCode.OK -> handleResponse<PrinterResponse>(response, "Failed to load default printer")
+            HttpStatusCode.NotFound -> null
+            else -> throw Exception("Failed to load default printer: ${tryParseError(response)}")
+        }
+    }
+
+    suspend fun createPrinter(request: PrinterRequest): Result<PrinterResponse> = executeRequest {
+        val token = requireToken()
+        val response: HttpResponse = client.post("$baseUrl/pos/printers") {
+            header(HttpHeaders.Authorization, "Bearer $token")
+            contentType(ContentType.Application.Json)
+            accept(ContentType.Application.Json)
+            setBody(request)
+        }
+        handleResponse<PrinterResponse>(response, "Failed to create printer")
+    }
+
+    suspend fun updatePrinter(id: Long, request: PrinterRequest): Result<PrinterResponse> = executeRequest {
+        val token = requireToken()
+        val response: HttpResponse = client.put("$baseUrl/pos/printers/$id") {
+            header(HttpHeaders.Authorization, "Bearer $token")
+            contentType(ContentType.Application.Json)
+            accept(ContentType.Application.Json)
+            setBody(request)
+        }
+        handleResponse<PrinterResponse>(response, "Failed to update printer")
+    }
+
+    suspend fun setDefaultPrinter(id: Long): Result<PrinterResponse> = executeRequest {
+        val token = requireToken()
+        val response: HttpResponse = client.put("$baseUrl/pos/printers/$id/default") {
+            header(HttpHeaders.Authorization, "Bearer $token")
+            accept(ContentType.Application.Json)
+        }
+        handleResponse<PrinterResponse>(response, "Failed to set default printer")
+    }
+
+    suspend fun deletePrinter(id: Long): Result<Unit> = executeRequest {
+        val token = requireToken()
+        val response: HttpResponse = client.delete("$baseUrl/pos/printers/$id") {
+            header(HttpHeaders.Authorization, "Bearer $token")
+            accept(ContentType.Application.Json)
+        }
+        when (response.status) {
+            HttpStatusCode.OK, HttpStatusCode.NoContent -> Unit
+            else -> throw Exception("Failed to delete printer: ${tryParseError(response)}")
+        }
+    }
+
     suspend fun getWaiters(): Result<List<WaiterInfo>> = executeRequest {
         val token = requireToken()
         val response: HttpResponse = client.get("$baseUrl/user-info/waiter") {

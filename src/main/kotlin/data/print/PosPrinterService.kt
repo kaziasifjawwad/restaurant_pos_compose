@@ -13,7 +13,11 @@ import data.model.TakeoutPaymentStatus
 import java.io.ByteArrayOutputStream
 import java.nio.charset.Charset
 import java.text.DecimalFormat
+import java.time.Instant
+import java.time.LocalDate
 import java.time.LocalDateTime
+import java.time.OffsetDateTime
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import javax.print.DocFlavor
 import javax.print.PrintService
@@ -24,6 +28,7 @@ object PosPrinterService {
     private const val MAX_CHARS = 42
     private val amountFormat = DecimalFormat("#,##0.00")
     private val dateTimeFormat = DateTimeFormatter.ofPattern("dd MMM yyyy  h:mm a")
+    private val dateFormat = DateTimeFormatter.ofPattern("dd MMM yyyy")
     private val printerCharset: Charset = Charsets.US_ASCII
 
     fun printCashMemoTwice(order: FoodOrderByCustomer, printerModelName: String): Result<Unit> =
@@ -216,7 +221,7 @@ object PosPrinterService {
         add(ReceiptLine.center(title, bold = true))
         add(ReceiptLine.separator())
         add(ReceiptLine.pair("Receipt No.", "#${order.id.toString().padStart(5, '0')}"))
-        add(ReceiptLine.pair("Date", order.createdDateTime?.takeIf { it.isNotBlank() } ?: LocalDateTime.now().format(dateTimeFormat)))
+        add(ReceiptLine.pair("Date", humanDateTime(order.createdDateTime)))
         add(ReceiptLine.pair("Table", "No. ${order.tableNumber}"))
         add(ReceiptLine.pair("Waiter", order.waiterName ?: "Unknown"))
     }
@@ -231,7 +236,7 @@ object PosPrinterService {
         add(ReceiptLine.center(title, bold = true))
         add(ReceiptLine.separator())
         add(ReceiptLine.pair("Order", order.takeoutOrderNumber ?: "#${order.id.toString().padStart(5, '0')}"))
-        add(ReceiptLine.pair("Date", order.createdDateTime?.takeIf { it.isNotBlank() } ?: LocalDateTime.now().format(dateTimeFormat)))
+        add(ReceiptLine.pair("Date", humanDateTime(order.createdDateTime)))
         add(ReceiptLine.pair("Medium", order.mediumName ?: order.mediumCode))
         if (!order.externalOrderId.isNullOrBlank()) add(ReceiptLine.pair("External", order.externalOrderId))
         if (!order.customerName.isNullOrBlank()) add(ReceiptLine.pair("Customer", order.customerName))
@@ -437,6 +442,28 @@ object PosPrinterService {
     private fun formatNum(value: Double): String = if (value % 1.0 == 0.0) value.toLong().toString() else DecimalFormat("#,##0.##").format(value)
     private fun safe(value: String?, fallback: String): String = value?.takeIf { it.isNotBlank() } ?: fallback
     private fun sanitize(value: String): String = value.map { if (it.code in 32..126 || it == '\n') it else '?' }.joinToString("")
+
+    private fun humanDateTime(value: String?): String {
+        val raw = value?.trim().orEmpty()
+        if (raw.isBlank()) return LocalDateTime.now().format(dateTimeFormat)
+
+        val localZone = ZoneId.systemDefault()
+        return runCatching {
+            OffsetDateTime.parse(raw).atZoneSameInstant(localZone).format(dateTimeFormat)
+        }.getOrElse {
+            runCatching {
+                Instant.parse(raw).atZone(localZone).format(dateTimeFormat)
+            }.getOrElse {
+                runCatching {
+                    LocalDateTime.parse(raw).format(dateTimeFormat)
+                }.getOrElse {
+                    runCatching {
+                        LocalDate.parse(raw).format(dateFormat)
+                    }.getOrDefault(raw)
+                }
+            }
+        }
+    }
 
     private fun wrap(value: String, width: Int): List<String> {
         val words = value.trim().split(Regex("\\s+")).filter { it.isNotBlank() }

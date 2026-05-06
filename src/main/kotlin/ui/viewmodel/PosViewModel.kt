@@ -150,14 +150,20 @@ class PosViewModel(
         scope.launch {
             _uiState.update { it.copy(isSaving = true, errorMessage = null) }
             repository.loadLookupData()
+            val isEditMode = _uiState.value.editorMode is PosUiState.EditorMode.Edit
             val result = when (val mode = _uiState.value.editorMode) {
                 is PosUiState.EditorMode.Edit -> repository.updateOrder(mode.orderId, request)
                 else -> repository.createOrder(request)
             }
-            result.onSuccess {
+            result.onSuccess { savedOrder ->
+                val printMessage = if (!isEditMode) printCashMemoForNewOrder(savedOrder.id) else null
                 _uiState.update {
                     it.copy(
-                        successMessage = if (_uiState.value.editorMode is PosUiState.EditorMode.Edit) "Order updated successfully" else "Order created successfully",
+                        successMessage = when {
+                            isEditMode -> "Order updated successfully"
+                            printMessage != null -> "Order created successfully. $printMessage"
+                            else -> "Order created successfully and cash memo printed"
+                        },
                         editorMode = PosUiState.EditorMode.Closed,
                         selectedOrder = null
                     )
@@ -165,6 +171,22 @@ class PosViewModel(
             }.onError { error -> _uiState.update { it.copy(errorMessage = error.message) } }
             _uiState.update { it.copy(isSaving = false) }
         }
+    }
+
+    private suspend fun printCashMemoForNewOrder(orderId: Long): String? {
+        val printer = ensureDefaultPrinter()
+            ?: return "Cash memo was not printed because no default printer is configured."
+
+        val order = when (val detailsResult = repository.getOrderDetails(orderId, forceRefresh = true)) {
+            is Result.Success -> detailsResult.data
+            is Result.Error -> return "Cash memo was not printed: ${detailsResult.message}"
+        }
+
+        return PosPrinterService.printCashMemoTwice(order, printer.printerModelName)
+            .fold(
+                onSuccess = { null },
+                onFailure = { error -> "Cash memo was not printed: ${error.message ?: "printer error"}" }
+            )
     }
 
     private fun printBill(orderId: Long) {

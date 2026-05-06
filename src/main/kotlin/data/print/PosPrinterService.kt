@@ -1,148 +1,326 @@
 package data.print
 
 import data.model.BeverageOrder
+import data.model.DiscountType
 import data.model.FoodOrder
 import data.model.FoodOrderByCustomer
-import java.awt.Font
-import java.awt.Graphics
-import java.awt.Graphics2D
-import java.awt.print.PageFormat
-import java.awt.print.Printable
-import java.awt.print.PrinterException
-import java.awt.print.PrinterJob
+import data.model.OrderStatus
+import java.io.ByteArrayOutputStream
+import java.nio.charset.Charset
 import java.text.DecimalFormat
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
+import javax.print.DocFlavor
 import javax.print.PrintService
 import javax.print.PrintServiceLookup
+import javax.print.SimpleDoc
 
 object PosPrinterService {
-    private const val LINE_HEIGHT = 14
-    private const val LEFT_PADDING = 18
     private const val MAX_CHARS = 42
     private val amountFormat = DecimalFormat("#,##0.00")
+    private val dateTimeFormat = DateTimeFormatter.ofPattern("dd MMM yyyy  h:mm a")
+    private val printerCharset: Charset = Charsets.US_ASCII
 
-    fun printBill(order: FoodOrderByCustomer, printerModelName: String): Result<Unit> = printText(
-        printerModelName = printerModelName,
-        title = "POS Bill #${order.id}",
-        lines = buildBillLines(order)
-    )
+    fun printCashMemoTwice(order: FoodOrderByCustomer, printerModelName: String): Result<Unit> =
+        printEscPos(
+            printerModelName = printerModelName,
+            jobName = "Cash Memo #${order.id}",
+            copies = 2,
+            lines = buildCashMemoLines(order)
+        )
 
-    fun printKitchenMemo(order: FoodOrderByCustomer, printerModelName: String): Result<Unit> = printText(
-        printerModelName = printerModelName,
-        title = "Kitchen Memo #${order.id}",
-        lines = buildKitchenMemoLines(order)
-    )
+    fun printBill(order: FoodOrderByCustomer, printerModelName: String): Result<Unit> =
+        printEscPos(
+            printerModelName = printerModelName,
+            jobName = "Bill #${order.id}",
+            copies = 1,
+            lines = buildBillLines(order)
+        )
 
-    private fun printText(printerModelName: String, title: String, lines: List<String>): Result<Unit> = try {
+    fun printKitchenMemo(order: FoodOrderByCustomer, printerModelName: String): Result<Unit> =
+        printEscPos(
+            printerModelName = printerModelName,
+            jobName = "Kitchen Memo #${order.id}",
+            copies = 1,
+            lines = buildKitchenMemoLines(order)
+        )
+
+    private fun printEscPos(
+        printerModelName: String,
+        jobName: String,
+        copies: Int,
+        lines: List<ReceiptLine>
+    ): Result<Unit> = try {
         val printService = findPrinter(printerModelName)
             ?: return Result.failure(IllegalStateException("Printer not found: $printerModelName"))
-        val job = PrinterJob.getPrinterJob()
-        job.printService = printService
-        job.jobName = title
-        job.setPrintable(TextReceiptPrintable(lines))
-        job.print()
+
+        val bytes = buildEscPosPayload(lines = lines, copies = copies.coerceAtLeast(1))
+        val job = printService.createPrintJob()
+        val doc = SimpleDoc(bytes, DocFlavor.BYTE_ARRAY.AUTOSENSE, null)
+        job.print(doc, null)
+        println("[PosPrinterService] Sent $jobName to ${printService.name}")
         Result.success(Unit)
-    } catch (ex: PrinterException) {
-        Result.failure(ex)
     } catch (ex: Exception) {
         Result.failure(ex)
     }
 
     private fun findPrinter(printerModelName: String): PrintService? {
         val target = printerModelName.trim()
-        return PrintServiceLookup.lookupPrintServices(null, null)
-            .firstOrNull { it.name.equals(target, ignoreCase = true) }
-            ?: PrintServiceLookup.lookupPrintServices(null, null)
-                .firstOrNull { it.name.contains(target, ignoreCase = true) }
+        val services = PrintServiceLookup.lookupPrintServices(DocFlavor.BYTE_ARRAY.AUTOSENSE, null)
+            .ifEmpty { PrintServiceLookup.lookupPrintServices(null, null) }
+        return services.firstOrNull { it.name.equals(target, ignoreCase = true) }
+            ?: services.firstOrNull { it.name.contains(target, ignoreCase = true) }
     }
 
-    private fun buildBillLines(order: FoodOrderByCustomer): List<String> = buildList {
-        header(order, "CUSTOMER BILL")
-        add("Items")
-        add(separator())
-        order.foodOrders.forEach { addFoodLine(it) }
-        order.beverageOrders.forEach { addBeverageLine(it) }
-        add(separator())
-        add(pair("Total", money(order.totalAmount)))
-        add(pair("Discount", money(order.discount)))
-        add(pair("Status", order.orderStatus.displayName))
-        add(pair("Payment", order.paymentMethod?.displayName ?: "N/A"))
-        add(separator())
-        add(center("Thank you"))
-    }
-
-    private fun buildKitchenMemoLines(order: FoodOrderByCustomer): List<String> = buildList {
-        header(order, "KITCHEN MEMO")
-        add("Food")
-        add(separator())
-        if (order.foodOrders.isEmpty()) add("No food items")
-        order.foodOrders.forEach { food ->
-            add("${food.foodQuantity} x ${safe(food.foodName, "Food #${food.itemNumber}")}")
-            add("  Size: ${food.foodSize.name}")
+    private fun buildEscPosPayload(lines: List<ReceiptLine>, copies: Int): ByteArray {
+        val out = ByteArrayOutputStream()
+        repeat(copies) { copyIndex ->
+            out.write(ESC_INIT)
+            out.write(ESC_ALIGN_LEFT)
+            lines.forEach { line -> out.write(line.toEscPosBytes()) }
+            out.write(FEED)
+            out.write(PARTIAL_CUT)
+            if (copyIndex < copies - 1) out.write(ESC_INIT)
         }
+        return out.toByteArray()
+    }
+
+    private fun buildCashMemoLines(order: FoodOrderByCustomer): List<ReceiptLine> = buildList {
+        receiptHeader(order, "CASH MEMO")
+        addItemsTable(order, includePrice = true)
+        addTotals(order)
+        footer("Customer Copy")
+    }
+
+    private fun buildBillLines(order: FoodOrderByCustomer): List<ReceiptLine> = buildList {
+        receiptHeader(order, "PRINT BILL")
+        addItemsTable(order, includePrice = true)
+        addTotals(order)
+        add(ReceiptLine.pair("Status", order.orderStatus.displayName))
+        add(ReceiptLine.pair("Payment", order.paymentMethod?.displayName ?: "N/A"))
+        footer("Thank you")
+    }
+
+    private fun buildKitchenMemoLines(order: FoodOrderByCustomer): List<ReceiptLine> = buildList {
+        receiptHeader(order, "KITCHEN MEMO")
+        add(ReceiptLine.separator())
+        add(ReceiptLine.bold("FOOD"))
+        val foodGroups = order.foodOrders
+            .groupBy { "${safe(it.foodName, "Food #${it.itemNumber}")}|${it.foodSize.name}" }
+            .values
+            .map { group ->
+                val first = group.first()
+                val qty = group.sumOf { it.foodQuantity }
+                "${qty} x ${safe(first.foodName, "Food #${first.itemNumber}")} (${first.foodSize.name})"
+            }
+        if (foodGroups.isEmpty()) add(ReceiptLine.text("No food items"))
+        foodGroups.forEach { addWrapped(it) }
+
         if (order.beverageOrders.isNotEmpty()) {
-            add(separator())
-            add("Beverage")
-            order.beverageOrders.forEach { beverage ->
-                add("${beverage.amount} x ${safe(beverage.beverageName, "Beverage #${beverage.beverageId}")}")
-                add("  ${amountFormat.format(beverage.quantity)} ${beverage.unit?.name.orEmpty()}")
+            add(ReceiptLine.separator())
+            add(ReceiptLine.bold("BEVERAGE"))
+            val beverageGroups = order.beverageOrders
+                .groupBy { "${safe(it.beverageName, "Beverage #${it.beverageId}")}|${it.quantity}|${it.unit?.name.orEmpty()}" }
+                .values
+                .map { group ->
+                    val first = group.first()
+                    val qty = group.sumOf { it.amount }
+                    "${qty} x ${beverageDisplayName(first)}"
+                }
+            beverageGroups.forEach { addWrapped(it) }
+        }
+        footer("Prepare with care")
+    }
+
+    private fun MutableList<ReceiptLine>.receiptHeader(order: FoodOrderByCustomer, title: String) {
+        add(ReceiptLine.center("Restaurant POS", bold = true, doubleSize = true))
+        add(ReceiptLine.center("29 Tonugonj Lane"))
+        add(ReceiptLine.center("Katherpool, Sutrapur, Dhaka-1100"))
+        add(ReceiptLine.center("+8801886937480 | +8801716261536"))
+        add(ReceiptLine.separator())
+        add(ReceiptLine.center(title, bold = true))
+        add(ReceiptLine.separator())
+        add(ReceiptLine.pair("Receipt No.", "#${order.id.toString().padStart(5, '0')}"))
+        add(ReceiptLine.pair("Date", order.createdDateTime?.takeIf { it.isNotBlank() } ?: LocalDateTime.now().format(dateTimeFormat)))
+        add(ReceiptLine.pair("Table", "No. ${order.tableNumber}"))
+        add(ReceiptLine.pair("Waiter", order.waiterName ?: "Unknown"))
+    }
+
+    private fun MutableList<ReceiptLine>.addItemsTable(order: FoodOrderByCustomer, includePrice: Boolean) {
+        add(ReceiptLine.separator())
+        if (includePrice) {
+            add(ReceiptLine.text("Item".padEnd(18) + "Qty".padStart(4) + "Price".padStart(9) + "Total".padStart(11)))
+        } else {
+            add(ReceiptLine.text(pair("Item", "Qty", MAX_CHARS)))
+        }
+        add(ReceiptLine.separator())
+
+        order.foodOrders.sortedWith(compareBy<FoodOrder> { it.itemNumber }.thenBy { it.foodSize.name }).forEach { item ->
+            val name = safe(item.foodName, "Food #${item.itemNumber}")
+            val total = item.foodPrice * item.foodQuantity
+            addItemLine(name, item.foodQuantity.toString(), money(item.foodPrice), money(total), includePrice)
+            addWrapped("  ${item.foodSize.name}")
+        }
+
+        order.beverageOrders.sortedBy { safe(it.beverageName, "") }.forEach { item ->
+            val total = beverageTotal(item)
+            addItemLine(beverageDisplayName(item), item.amount.toString(), money(item.price), money(total), includePrice)
+        }
+    }
+
+    private fun MutableList<ReceiptLine>.addItemLine(
+        name: String,
+        qty: String,
+        price: String,
+        total: String,
+        includePrice: Boolean
+    ) {
+        val nameWidth = if (includePrice) 18 else 34
+        val nameLines = wrap(name, nameWidth)
+        nameLines.forEachIndexed { index, line ->
+            if (index == 0) {
+                add(
+                    ReceiptLine.text(
+                        if (includePrice) {
+                            line.padEnd(nameWidth).take(nameWidth) +
+                                qty.padStart(4) +
+                                price.padStart(9) +
+                                total.padStart(11)
+                        } else {
+                            line.padEnd(nameWidth).take(nameWidth) + qty.padStart(8)
+                        }
+                    )
+                )
+            } else {
+                add(ReceiptLine.text(line))
             }
         }
-        add(separator())
-        add(center("Prepare with care"))
     }
 
-    private fun MutableList<String>.header(order: FoodOrderByCustomer, title: String) {
-        add(center("Restaurant POS"))
-        add(center(title))
-        add(separator())
-        add(pair("Order", "#${order.id}"))
-        add(pair("Table", order.tableNumber.toString()))
-        add(pair("Waiter", order.waiterName ?: "Unknown"))
-        add(separator())
+    private fun MutableList<ReceiptLine>.addTotals(order: FoodOrderByCustomer) {
+        val subtotal = order.foodOrders.sumOf { it.foodPrice * it.foodQuantity } +
+            order.beverageOrders.sumOf { beverageTotal(it) }
+        val discountAmount = if (order.discountType == DiscountType.PERCENTAGE) {
+            subtotal * order.discount / 100.0
+        } else {
+            order.discount
+        }
+        val discountLabel = if (order.discountType == DiscountType.PERCENTAGE) {
+            "Discount(${formatNum(order.discount)}%)"
+        } else {
+            "Discount"
+        }
+        val grandTotal = order.totalAmount.takeIf { it > 0.0 } ?: (subtotal - discountAmount)
+
+        add(ReceiptLine.separator())
+        add(ReceiptLine.pair("Subtotal", money(subtotal)))
+        add(ReceiptLine.pair(discountLabel, "-${money(discountAmount)}"))
+        add(ReceiptLine.separator())
+        add(ReceiptLine.pair("TOTAL", money(grandTotal), bold = true))
     }
 
-    private fun MutableList<String>.addFoodLine(item: FoodOrder) {
-        val name = safe(item.foodName, "Food #${item.itemNumber}")
-        add(trimLine("${item.foodQuantity} x $name"))
-        add(pair("  ${item.foodSize.name}", money(item.foodPrice * item.foodQuantity)))
+    private fun MutableList<ReceiptLine>.footer(text: String) {
+        add(ReceiptLine.separator())
+        add(ReceiptLine.center(text))
+        add(ReceiptLine.center("Visit Us Again Soon"))
     }
 
-    private fun MutableList<String>.addBeverageLine(item: BeverageOrder) {
-        val name = safe(item.beverageName, "Beverage #${item.beverageId}")
-        add(trimLine("${item.amount} x $name"))
-        add(pair("  ${amountFormat.format(item.quantity)} ${item.unit?.name.orEmpty()}", money(item.price * item.amount)))
+    private fun MutableList<ReceiptLine>.addWrapped(text: String) {
+        wrap(text, MAX_CHARS).forEach { add(ReceiptLine.text(it)) }
     }
 
-    private fun pair(left: String, right: String): String {
-        val safeLeft = trimLine(left)
-        if (safeLeft.length + right.length >= MAX_CHARS) return "$safeLeft $right"
-        val spaces = " ".repeat(MAX_CHARS - safeLeft.length - right.length)
-        return safeLeft + spaces + right
+    private fun ReceiptLine.toEscPosBytes(): ByteArray {
+        val out = ByteArrayOutputStream()
+        out.write(if (align == Align.CENTER) ESC_ALIGN_CENTER else ESC_ALIGN_LEFT)
+        out.write(if (bold) ESC_BOLD_ON else ESC_BOLD_OFF)
+        out.write(if (doubleSize) GS_DOUBLE_SIZE_ON else GS_DOUBLE_SIZE_OFF)
+        out.write(sanitize(text).toByteArray(printerCharset))
+        out.write(LF)
+        out.write(GS_DOUBLE_SIZE_OFF)
+        out.write(ESC_BOLD_OFF)
+        out.write(ESC_ALIGN_LEFT)
+        return out.toByteArray()
     }
 
-    private fun center(text: String): String {
-        if (text.length >= MAX_CHARS) return trimLine(text)
-        val padding = (MAX_CHARS - text.length) / 2
-        return " ".repeat(padding) + text
+    private data class ReceiptLine(
+        val text: String,
+        val align: Align = Align.LEFT,
+        val bold: Boolean = false,
+        val doubleSize: Boolean = false
+    ) {
+        companion object {
+            fun text(value: String) = ReceiptLine(value)
+            fun bold(value: String) = ReceiptLine(value, bold = true)
+            fun center(value: String, bold: Boolean = false, doubleSize: Boolean = false) =
+                ReceiptLine(value, Align.CENTER, bold, doubleSize)
+            fun pair(left: String, right: String, bold: Boolean = false) = ReceiptLine(pair(left, right, MAX_CHARS), bold = bold)
+            fun separator() = ReceiptLine("-".repeat(MAX_CHARS))
+        }
     }
 
+    private enum class Align { LEFT, CENTER }
+
+    private val OrderStatus.displayName: String get() = when (this) {
+        OrderStatus.ORDER_PLACED -> "Order Placed"
+        OrderStatus.BILL_PRINTED -> "Bill Printed"
+        OrderStatus.PAID -> "Paid"
+        OrderStatus.CANCELED -> "Canceled"
+    }
+
+    private fun pair(left: String, right: String, width: Int): String {
+        val safeRight = right.take(width)
+        val maxLeft = (width - safeRight.length - 1).coerceAtLeast(0)
+        val safeLeft = left.take(maxLeft)
+        if (safeLeft.length + safeRight.length >= width) return (safeLeft + safeRight).take(width)
+        return safeLeft + " ".repeat(width - safeLeft.length - safeRight.length) + safeRight
+    }
+
+    private fun beverageDisplayName(item: BeverageOrder): String {
+        val unit = item.unit?.name.orEmpty()
+        val size = listOf(formatNum(item.quantity), unit.takeIf { it.isNotBlank() }).filterNotNull().joinToString(" ")
+        return "${safe(item.beverageName, "Beverage #${item.beverageId}")} ($size)".trim()
+    }
+
+    private fun beverageTotal(item: BeverageOrder): Double = item.price * item.amount
     private fun money(amount: Double): String = "Tk ${amountFormat.format(amount)}"
-    private fun separator(): String = "-".repeat(MAX_CHARS)
+    private fun formatNum(value: Double): String = if (value % 1.0 == 0.0) value.toLong().toString() else DecimalFormat("#,##0.##").format(value)
     private fun safe(value: String?, fallback: String): String = value?.takeIf { it.isNotBlank() } ?: fallback
-    private fun trimLine(value: String): String = if (value.length <= MAX_CHARS) value else value.take(MAX_CHARS - 3) + "..."
+    private fun sanitize(value: String): String = value.map { if (it.code in 32..126 || it == '\n') it else '?' }.joinToString("")
 
-    private class TextReceiptPrintable(private val lines: List<String>) : Printable {
-        override fun print(graphics: Graphics, pageFormat: PageFormat, pageIndex: Int): Int {
-            if (pageIndex > 0) return Printable.NO_SUCH_PAGE
-            val g2d = graphics as Graphics2D
-            g2d.translate(pageFormat.imageableX, pageFormat.imageableY)
-            g2d.font = Font(Font.MONOSPACED, Font.PLAIN, 10)
-            var y = 20
-            lines.forEach { line ->
-                g2d.drawString(line, LEFT_PADDING, y)
-                y += LINE_HEIGHT
+    private fun wrap(value: String, width: Int): List<String> {
+        val words = value.trim().split(Regex("\\s+")).filter { it.isNotBlank() }
+        if (words.isEmpty()) return listOf("")
+        val lines = mutableListOf<String>()
+        var current = ""
+        words.forEach { word ->
+            if (word.length > width) {
+                if (current.isNotBlank()) {
+                    lines += current
+                    current = ""
+                }
+                lines += word.chunked(width)
+            } else {
+                val candidate = if (current.isBlank()) word else "$current $word"
+                if (candidate.length <= width) {
+                    current = candidate
+                } else {
+                    lines += current
+                    current = word
+                }
             }
-            return Printable.PAGE_EXISTS
         }
+        if (current.isNotBlank()) lines += current
+        return lines
     }
+
+    private val ESC_INIT = byteArrayOf(0x1B, 0x40)
+    private val ESC_ALIGN_LEFT = byteArrayOf(0x1B, 0x61, 0x00)
+    private val ESC_ALIGN_CENTER = byteArrayOf(0x1B, 0x61, 0x01)
+    private val ESC_BOLD_ON = byteArrayOf(0x1B, 0x45, 0x01)
+    private val ESC_BOLD_OFF = byteArrayOf(0x1B, 0x45, 0x00)
+    private val GS_DOUBLE_SIZE_ON = byteArrayOf(0x1D, 0x21, 0x11)
+    private val GS_DOUBLE_SIZE_OFF = byteArrayOf(0x1D, 0x21, 0x00)
+    private val LF = byteArrayOf(0x0A)
+    private val FEED = byteArrayOf(0x0A, 0x0A, 0x0A, 0x0A)
+    private val PARTIAL_CUT = byteArrayOf(0x1D, 0x56, 0x01)
 }

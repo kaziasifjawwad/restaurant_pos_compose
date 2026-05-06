@@ -7,7 +7,7 @@ data class TableResponse(
     val tableNumber: Int = 0,
     val description: String = "",
     val capacity: Int = 0,
-    val id: Long = 0,
+    val id: String = "",
     val isAvailable: Boolean = true
 )
 

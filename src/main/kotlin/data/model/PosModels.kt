@@ -67,6 +67,21 @@ data class PaymentMethodRequest(
     val active: Boolean = true
 )
 
+@Serializable
+data class PrinterResponse(
+    val id: Long,
+    val printerModelName: String,
+    val defaultPrinter: Boolean = false,
+    val active: Boolean = true
+)
+
+@Serializable
+data class PrinterRequest(
+    val printerModelName: String,
+    val defaultPrinter: Boolean = false,
+    val active: Boolean = true
+)
+
 // Note: Use QuantityUnit from BeverageModels.kt for liquid units
 
 // ==================== Response Models ====================

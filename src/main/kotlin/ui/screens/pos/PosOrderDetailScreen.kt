@@ -18,6 +18,7 @@ import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -29,6 +30,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -73,6 +75,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.OutlinedTextField
@@ -200,36 +203,53 @@ private fun CheckoutHeader(
         color = MaterialTheme.colorScheme.surface,
         shadowElevation = 5.dp
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 14.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                IconButton(onClick = onBack) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = Goldenrod)
+        BoxWithConstraints(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 14.dp)) {
+            val titleBlock: @Composable () -> Unit = {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = Goldenrod)
+                    }
+                    Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                        Text(
+                            text = if (isReadOnlyReceipt) "Order Details" else order?.let { "Order #${it.id}" } ?: "Loading order...",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Black,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Text(
+                            text = order?.let { "Order #${it.id}" } ?: "Order loading...",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
-                Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                    Text(
-                        text = if (isReadOnlyReceipt) "Order Details" else order?.let { "Order #${it.id}" } ?: "Loading order...",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Black,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Text(
-                        text = order?.let { "Order #${it.id}" } ?: "Order loading...",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+            }
+            val actions: @Composable () -> Unit = {
+                when {
+                    isReadOnlyReceipt -> Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                        BistroSecondaryButton(text = "Print", icon = Icons.Outlined.Print, onClick = onPrint)
+                        BistroDangerButton(text = "Refund", onClick = onRefund)
+                    }
+                    order != null && order.orderStatus != OrderStatus.CANCELED -> BistroSecondaryButton(text = "Edit", icon = Icons.Outlined.Edit, onClick = onEdit)
                 }
             }
 
-            when {
-                isReadOnlyReceipt -> Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                    BistroSecondaryButton(text = "Print", icon = Icons.Outlined.Print, onClick = onPrint)
-                    BistroDangerButton(text = "Refund", onClick = onRefund)
+            if (maxWidth < 620.dp) {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    titleBlock()
+                    actions()
                 }
-                order != null && order.orderStatus != OrderStatus.CANCELED -> BistroSecondaryButton(text = "Edit", icon = Icons.Outlined.Edit, onClick = onEdit)
+            } else {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Box(modifier = Modifier.weight(1f)) { titleBlock() }
+                    actions()
+                }
             }
         }
     }
@@ -289,18 +309,41 @@ private fun OrderDetailsCheckoutContent(
         return
     }
 
-    Row(
-        modifier = Modifier.fillMaxSize().padding(20.dp),
-        horizontalArrangement = Arrangement.spacedBy(20.dp)
-    ) {
-        OrderFeedColumn(order = order, df = df, modifier = Modifier.weight(0.60f).fillMaxHeight())
-        CheckoutEngine(
-            order = order,
-            paymentMethods = paymentMethods,
-            df = df,
-            viewModel = viewModel,
-            modifier = Modifier.weight(0.40f).fillMaxHeight()
-        )
+    BoxWithConstraints(modifier = Modifier.fillMaxSize().padding(20.dp)) {
+        val stacked = maxWidth < 980.dp
+        if (stacked) {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+                contentPadding = PaddingValues(bottom = 24.dp)
+            ) {
+                orderFeedItems(order = order, df = df)
+                item {
+                    CheckoutEngine(
+                        order = order,
+                        paymentMethods = paymentMethods,
+                        df = df,
+                        viewModel = viewModel,
+                        modifier = Modifier.fillMaxWidth(),
+                        fillHeightContent = false
+                    )
+                }
+            }
+        } else {
+            Row(
+                modifier = Modifier.fillMaxSize(),
+                horizontalArrangement = Arrangement.spacedBy(20.dp)
+            ) {
+                OrderFeedColumn(order = order, df = df, modifier = Modifier.weight(0.58f).fillMaxHeight())
+                CheckoutEngine(
+                    order = order,
+                    paymentMethods = paymentMethods,
+                    df = df,
+                    viewModel = viewModel,
+                    modifier = Modifier.weight(0.42f).fillMaxHeight()
+                )
+            }
+        }
     }
 }
 
@@ -319,26 +362,36 @@ private fun DigitalReceiptContent(order: FoodOrderByCustomer, df: DecimalFormat)
 
 @Composable
 private fun ReceiptMetaBar(order: FoodOrderByCustomer) {
-    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-        ReceiptInfoCard(
-            emoji = "👤",
-            label = "Waiter",
-            value = order.waiterName ?: "Unknown",
-            modifier = Modifier.weight(1f)
-        )
-        ReceiptInfoCard(
-            emoji = "🪑",
-            label = "Table",
-            value = "Table ${order.tableNumber}",
-            modifier = Modifier.weight(1f)
-        )
-        ReceiptInfoCard(
-            emoji = "✅",
-            label = "Status",
-            value = "PAID (${order.paymentMethod?.displayName ?: "N/A"})",
-            modifier = Modifier.weight(1f),
-            success = true
-        )
+    BoxWithConstraints {
+        if (maxWidth < 760.dp) {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                ReceiptInfoCard(emoji = "👤", label = "Waiter", value = order.waiterName ?: "Unknown", modifier = Modifier.fillMaxWidth())
+                ReceiptInfoCard(emoji = "🪑", label = "Table", value = "Table ${order.tableNumber}", modifier = Modifier.fillMaxWidth())
+                ReceiptInfoCard(emoji = "✅", label = "Status", value = "PAID (${order.paymentMethod?.displayName ?: "N/A"})", modifier = Modifier.fillMaxWidth(), success = true)
+            }
+        } else {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                ReceiptInfoCard(
+                    emoji = "👤",
+                    label = "Waiter",
+                    value = order.waiterName ?: "Unknown",
+                    modifier = Modifier.weight(1f)
+                )
+                ReceiptInfoCard(
+                    emoji = "🪑",
+                    label = "Table",
+                    value = "Table ${order.tableNumber}",
+                    modifier = Modifier.weight(1f)
+                )
+                ReceiptInfoCard(
+                    emoji = "✅",
+                    label = "Status",
+                    value = "PAID (${order.paymentMethod?.displayName ?: "N/A"})",
+                    modifier = Modifier.weight(1f),
+                    success = true
+                )
+            }
+        }
     }
 }
 
@@ -485,7 +538,7 @@ private fun ReceiptFinancialSummary(order: FoodOrderByCustomer, df: DecimalForma
     }
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
         Surface(
-            modifier = Modifier.width(420.dp),
+            modifier = Modifier.fillMaxWidth().widthIn(max = 420.dp),
             shape = RoundedCornerShape(18.dp),
             color = Color(0xFFFFF8E1),
             border = BorderStroke(1.dp, Goldenrod.copy(alpha = 0.18f)),
@@ -519,26 +572,30 @@ private fun OrderFeedColumn(order: FoodOrderByCustomer, df: DecimalFormat, modif
         verticalArrangement = Arrangement.spacedBy(14.dp),
         contentPadding = PaddingValues(bottom = 24.dp)
     ) {
-        item {
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text("Order Feed", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-                Text(
-                    "Grouped food and beverage items for fast review before checkout",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
+        orderFeedItems(order = order, df = df)
+    }
+}
 
-        if (order.foodOrders.isNotEmpty()) {
-            item { FeedSectionTitle("Food", order.foodOrders.size, Icons.Outlined.Restaurant) }
-            itemsIndexed(order.foodOrders) { index, item -> FoodItemCard(index + 1, item, df) }
+private fun androidx.compose.foundation.lazy.LazyListScope.orderFeedItems(order: FoodOrderByCustomer, df: DecimalFormat) {
+    item {
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text("Order Feed", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+            Text(
+                "Grouped food and beverage items for fast review before checkout",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
+    }
 
-        if (order.beverageOrders.isNotEmpty()) {
-            item { FeedSectionTitle("Beverages", order.beverageOrders.size, Icons.Outlined.LocalDrink) }
-            itemsIndexed(order.beverageOrders) { index, item -> BeverageItemCard(index + 1, item, df) }
-        }
+    if (order.foodOrders.isNotEmpty()) {
+        item { FeedSectionTitle("Food", order.foodOrders.size, Icons.Outlined.Restaurant) }
+        itemsIndexed(order.foodOrders) { index, item -> FoodItemCard(index + 1, item, df) }
+    }
+
+    if (order.beverageOrders.isNotEmpty()) {
+        item { FeedSectionTitle("Beverages", order.beverageOrders.size, Icons.Outlined.LocalDrink) }
+        itemsIndexed(order.beverageOrders) { index, item -> BeverageItemCard(index + 1, item, df) }
     }
 }
 
@@ -636,8 +693,8 @@ private fun PremiumItemCard(
                 Icon(icon, null, tint = Goldenrod, modifier = Modifier.padding(12.dp).size(24.dp))
             }
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                Text(meta, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(meta, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text("#$index", style = MaterialTheme.typography.labelSmall, color = Goldenrod, fontWeight = FontWeight.Bold)
                     Text("৳ ${df.format(unitPrice)} each", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -647,7 +704,7 @@ private fun PremiumItemCard(
                 Surface(shape = RoundedCornerShape(999.dp), color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.62f)) {
                     Text("× $quantity", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp))
                 }
-                Text("৳ ${df.format(lineTotal)}", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = Goldenrod)
+                Text("৳ ${df.format(lineTotal)}", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = Goldenrod, maxLines = 1)
             }
         }
     }
@@ -659,7 +716,8 @@ private fun CheckoutEngine(
     paymentMethods: List<PaymentMethodResponse>,
     df: DecimalFormat,
     viewModel: PosViewModel,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    fillHeightContent: Boolean = true
 ) {
     val defaultPaymentMethod = remember(paymentMethods) {
         paymentMethods.firstOrNull { it.active && it.defaultMethod }?.methodCode
@@ -687,65 +745,61 @@ private fun CheckoutEngine(
         elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
         border = BorderStroke(1.dp, Goldenrod.copy(alpha = 0.18f))
     ) {
-        Column(
-            modifier = Modifier.fillMaxSize().padding(22.dp),
-            verticalArrangement = Arrangement.spacedBy(18.dp)
-        ) {
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text("Checkout Engine", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-                Text("Default payment method is selected from backend configuration", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-
-            FinancialBreakdown(subtotal = subtotal, tax = 0.0, discount = order.discount, grandTotal = order.totalAmount, df = df)
-            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.18f))
-
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text("Payment Method", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                Text("Payment methods are loaded from backend; the default method is preselected.", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                PaymentActionTiles(
+        if (fillHeightContent) {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize().padding(22.dp),
+                verticalArrangement = Arrangement.spacedBy(18.dp),
+                contentPadding = PaddingValues(bottom = 4.dp)
+            ) {
+                checkoutEngineItems(
+                    order = order,
                     paymentMethods = paymentMethods,
                     selectedPaymentMethod = selectedPaymentMethod,
-                    onSelect = { selectedPaymentMethod = it }
+                    onSelectPaymentMethod = { selectedPaymentMethod = it },
+                    subtotal = subtotal,
+                    df = df,
+                    isCompleting = isCompleting,
+                    onComplete = {
+                        val paymentMethod = selectedPaymentMethod ?: return@checkoutEngineItems
+                        isCompleting = true
+                        viewModel.onEvent(PosUiEvent.CompleteOrder(order.id, paymentMethod))
+                        scope.launch {
+                            delay(1200)
+                            isCompleting = false
+                        }
+                    },
+                    onPrintBill = { viewModel.onEvent(PosUiEvent.PrintBill(order.id)) },
+                    onKitchenMemo = { viewModel.onEvent(PosUiEvent.PrintKitchenMemo(order.id)) },
+                    onCancel = { showCancelDialog = true }
                 )
             }
-
-            Spacer(modifier = Modifier.weight(1f))
-
-            BistroPrimaryButton(
-                text = if (isCompleting) "Completing..." else "Complete Order",
-                icon = Icons.Outlined.CheckCircle,
-                enabled = selectedPaymentMethod != null && order.orderStatus != OrderStatus.PAID && order.orderStatus != OrderStatus.CANCELED && !isCompleting,
-                loading = isCompleting,
-                onClick = {
-                    val paymentMethod = selectedPaymentMethod ?: return@BistroPrimaryButton
-                    isCompleting = true
-                    viewModel.onEvent(PosUiEvent.CompleteOrder(order.id, paymentMethod))
-                    scope.launch {
-                        delay(1200)
-                        isCompleting = false
-                    }
-                }
-            )
-
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
-                BistroSecondaryButton(
-                    text = "Print Bill",
-                    icon = Icons.Outlined.Print,
-                    modifier = Modifier.weight(1f),
-                    onClick = { viewModel.onEvent(PosUiEvent.PrintBill(order.id)) }
-                )
-                BistroSecondaryButton(
-                    text = "Kitchen Memo",
-                    icon = Icons.Outlined.Restaurant,
-                    modifier = Modifier.weight(1f),
-                    onClick = { viewModel.onEvent(PosUiEvent.PrintKitchenMemo(order.id)) }
+        } else {
+            Column(
+                modifier = Modifier.fillMaxWidth().padding(22.dp),
+                verticalArrangement = Arrangement.spacedBy(18.dp)
+            ) {
+                CheckoutEngineStaticContent(
+                    order = order,
+                    paymentMethods = paymentMethods,
+                    selectedPaymentMethod = selectedPaymentMethod,
+                    onSelectPaymentMethod = { selectedPaymentMethod = it },
+                    subtotal = subtotal,
+                    df = df,
+                    isCompleting = isCompleting,
+                    onComplete = {
+                        val paymentMethod = selectedPaymentMethod ?: return@CheckoutEngineStaticContent
+                        isCompleting = true
+                        viewModel.onEvent(PosUiEvent.CompleteOrder(order.id, paymentMethod))
+                        scope.launch {
+                            delay(1200)
+                            isCompleting = false
+                        }
+                    },
+                    onPrintBill = { viewModel.onEvent(PosUiEvent.PrintBill(order.id)) },
+                    onKitchenMemo = { viewModel.onEvent(PosUiEvent.PrintKitchenMemo(order.id)) },
+                    onCancel = { showCancelDialog = true }
                 )
             }
-
-            TextButtonLikeCancel(
-                enabled = order.orderStatus != OrderStatus.PAID && order.orderStatus != OrderStatus.CANCELED,
-                onClick = { showCancelDialog = true }
-            )
         }
     }
 
@@ -789,6 +843,107 @@ private fun CheckoutEngine(
             }
         )
     }
+}
+
+private fun androidx.compose.foundation.lazy.LazyListScope.checkoutEngineItems(
+    order: FoodOrderByCustomer,
+    paymentMethods: List<PaymentMethodResponse>,
+    selectedPaymentMethod: PaymentMethod?,
+    onSelectPaymentMethod: (PaymentMethod) -> Unit,
+    subtotal: Double,
+    df: DecimalFormat,
+    isCompleting: Boolean,
+    onComplete: () -> Unit,
+    onPrintBill: () -> Unit,
+    onKitchenMemo: () -> Unit,
+    onCancel: () -> Unit
+) {
+    item {
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text("Checkout Engine", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+            Text("Default payment method is selected from backend configuration", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+
+    item { FinancialBreakdown(subtotal = subtotal, tax = 0.0, discount = order.discount, grandTotal = order.totalAmount, df = df) }
+    item { HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.18f)) }
+
+    item {
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text("Payment Method", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Text("Payment methods are loaded from backend; the default method is preselected.", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            PaymentActionTiles(
+                paymentMethods = paymentMethods,
+                selectedPaymentMethod = selectedPaymentMethod,
+                onSelect = onSelectPaymentMethod
+            )
+        }
+    }
+
+    item {
+        BistroPrimaryButton(
+            text = if (isCompleting) "Completing..." else "Complete Order",
+            icon = Icons.Outlined.CheckCircle,
+            enabled = selectedPaymentMethod != null && order.orderStatus != OrderStatus.PAID && order.orderStatus != OrderStatus.CANCELED && !isCompleting,
+            loading = isCompleting,
+            onClick = onComplete
+        )
+    }
+
+    item { CheckoutSecondaryActions(onPrintBill = onPrintBill, onKitchenMemo = onKitchenMemo) }
+    item {
+        TextButtonLikeCancel(
+            enabled = order.orderStatus != OrderStatus.PAID && order.orderStatus != OrderStatus.CANCELED,
+            onClick = onCancel
+        )
+    }
+}
+
+@Composable
+private fun CheckoutEngineStaticContent(
+    order: FoodOrderByCustomer,
+    paymentMethods: List<PaymentMethodResponse>,
+    selectedPaymentMethod: PaymentMethod?,
+    onSelectPaymentMethod: (PaymentMethod) -> Unit,
+    subtotal: Double,
+    df: DecimalFormat,
+    isCompleting: Boolean,
+    onComplete: () -> Unit,
+    onPrintBill: () -> Unit,
+    onKitchenMemo: () -> Unit,
+    onCancel: () -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text("Checkout Engine", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+        Text("Default payment method is selected from backend configuration", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+
+    FinancialBreakdown(subtotal = subtotal, tax = 0.0, discount = order.discount, grandTotal = order.totalAmount, df = df)
+    HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.18f))
+
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Text("Payment Method", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+        Text("Payment methods are loaded from backend; the default method is preselected.", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        PaymentActionTiles(
+            paymentMethods = paymentMethods,
+            selectedPaymentMethod = selectedPaymentMethod,
+            onSelect = onSelectPaymentMethod
+        )
+    }
+
+    BistroPrimaryButton(
+        text = if (isCompleting) "Completing..." else "Complete Order",
+        icon = Icons.Outlined.CheckCircle,
+        enabled = selectedPaymentMethod != null && order.orderStatus != OrderStatus.PAID && order.orderStatus != OrderStatus.CANCELED && !isCompleting,
+        loading = isCompleting,
+        onClick = onComplete
+    )
+
+    CheckoutSecondaryActions(onPrintBill = onPrintBill, onKitchenMemo = onKitchenMemo)
+    TextButtonLikeCancel(
+        enabled = order.orderStatus != OrderStatus.PAID && order.orderStatus != OrderStatus.CANCELED,
+        onClick = onCancel
+    )
 }
 
 @Composable
@@ -858,14 +1013,24 @@ private fun PaymentActionTiles(
         return
     }
 
-    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        options.forEach { option ->
-            PaymentTile(
-                option = option,
-                selected = selectedPaymentMethod == option.method,
-                modifier = Modifier.weight(1f),
-                onClick = { onSelect(option.method) }
-            )
+    BoxWithConstraints {
+        val rowSize = if (maxWidth < 520.dp) 1 else 2
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            options.chunked(rowSize).forEach { rowOptions ->
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    rowOptions.forEach { option ->
+                        PaymentTile(
+                            option = option,
+                            selected = selectedPaymentMethod == option.method,
+                            modifier = Modifier.weight(1f),
+                            onClick = { onSelect(option.method) }
+                        )
+                    }
+                    repeat(rowSize - rowOptions.size) {
+                        Spacer(modifier = Modifier.weight(1f))
+                    }
+                }
+            }
         }
     }
 }
@@ -950,6 +1115,46 @@ private fun PaymentTile(option: PaymentTileOption, selected: Boolean, modifier: 
                         modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
                     )
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CheckoutSecondaryActions(
+    onPrintBill: () -> Unit,
+    onKitchenMemo: () -> Unit
+) {
+    BoxWithConstraints {
+        if (maxWidth < 430.dp) {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                BistroSecondaryButton(
+                    text = "Print Bill",
+                    icon = Icons.Outlined.Print,
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = onPrintBill
+                )
+                BistroSecondaryButton(
+                    text = "Kitchen Memo",
+                    icon = Icons.Outlined.Restaurant,
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = onKitchenMemo
+                )
+            }
+        } else {
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
+                BistroSecondaryButton(
+                    text = "Print Bill",
+                    icon = Icons.Outlined.Print,
+                    modifier = Modifier.weight(1f),
+                    onClick = onPrintBill
+                )
+                BistroSecondaryButton(
+                    text = "Kitchen Memo",
+                    icon = Icons.Outlined.Restaurant,
+                    modifier = Modifier.weight(1f),
+                    onClick = onKitchenMemo
+                )
             }
         }
     }

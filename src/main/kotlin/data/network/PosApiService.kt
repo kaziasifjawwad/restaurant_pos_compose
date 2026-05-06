@@ -179,6 +179,15 @@ class PosApiService(
         handleResponse<List<PrinterResponse>>(response, "Failed to load printers")
     }
 
+    suspend fun getSystemPrinters(): Result<List<String>> = executeRequest {
+        val token = requireToken()
+        val response: HttpResponse = client.get("$baseUrl/pos/printers/system") {
+            header(HttpHeaders.Authorization, "Bearer $token")
+            accept(ContentType.Application.Json)
+        }
+        handleResponse<List<String>>(response, "Failed to load system printers")
+    }
+
     suspend fun getAllPrinters(): Result<List<PrinterResponse>> = executeRequest {
         val token = requireToken()
         val response: HttpResponse = client.get("$baseUrl/pos/printers/all") {

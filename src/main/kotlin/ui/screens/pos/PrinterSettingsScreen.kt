@@ -1,6 +1,7 @@
 package ui.screens.pos
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,24 +16,19 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Print
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -47,7 +43,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import data.model.PrinterRequest
 import data.model.PrinterResponse
 import data.model.Result
 import data.repository.PosRepository
@@ -56,20 +51,48 @@ import kotlinx.coroutines.launch
 @Composable
 fun PrinterSettingsScreen(repository: PosRepository = PosRepository.getInstance()) {
     val scope = rememberCoroutineScope()
-    var printers by remember { mutableStateOf<List<PrinterResponse>>(emptyList()) }
+    var configuredPrinters by remember { mutableStateOf<List<PrinterResponse>>(emptyList()) }
+    var systemPrinters by remember { mutableStateOf<List<String>>(emptyList()) }
+    var selectedPrinterName by remember { mutableStateOf<String?>(null) }
     var isLoading by remember { mutableStateOf(false) }
+    var isSaving by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }
-    var editingPrinter by remember { mutableStateOf<PrinterResponse?>(null) }
-    var showEditor by remember { mutableStateOf(false) }
 
     fun loadPrinters() {
         scope.launch {
             isLoading = true
-            when (val result = repository.getAllPrinters()) {
-                is Result.Success -> printers = result.data
-                is Result.Error -> message = result.message
+            when (val configuredResult = repository.getAllPrinters()) {
+                is Result.Success -> configuredPrinters = configuredResult.data
+                is Result.Error -> message = configuredResult.message
+            }
+            when (val systemResult = repository.refreshSystemPrinters()) {
+                is Result.Success -> {
+                    systemPrinters = systemResult.data
+                    val currentDefault = configuredPrinters.firstOrNull { it.active && it.defaultPrinter }?.printerModelName
+                    selectedPrinterName = currentDefault ?: systemResult.data.firstOrNull()
+                }
+                is Result.Error -> message = systemResult.message
             }
             isLoading = false
+        }
+    }
+
+    fun saveSelectedPrinter() {
+        val selectedName = selectedPrinterName?.trim().orEmpty()
+        if (selectedName.isBlank()) {
+            message = "Select a printer first"
+            return
+        }
+        scope.launch {
+            isSaving = true
+            when (val result = repository.saveSystemPrinterAsDefault(selectedName)) {
+                is Result.Success -> {
+                    message = "Default printer saved: ${result.data.printerModelName}"
+                    loadPrinters()
+                }
+                is Result.Error -> message = result.message
+            }
+            isSaving = false
         }
     }
 
@@ -85,73 +108,49 @@ fun PrinterSettingsScreen(repository: PosRepository = PosRepository.getInstance(
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text("Printer Settings", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
                     Text(
-                        "Save printer model names and select one default printer for all POS memos.",
+                        "Select one printer detected from this system and save it as the default POS memo printer.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    OutlinedButton(onClick = { loadPrinters() }) {
+                    OutlinedButton(enabled = !isLoading && !isSaving, onClick = { loadPrinters() }) {
                         Icon(Icons.Default.Refresh, contentDescription = null)
                         Spacer(Modifier.width(8.dp))
                         Text("Refresh")
                     }
-                    Button(onClick = { editingPrinter = null; showEditor = true }) {
-                        Icon(Icons.Default.Add, contentDescription = null)
-                        Spacer(Modifier.width(8.dp))
-                        Text("Add Printer")
+                    Button(enabled = !isLoading && !isSaving && selectedPrinterName != null, onClick = { saveSelectedPrinter() }) {
+                        if (isSaving) {
+                            CircularProgressIndicator(modifier = Modifier.padding(end = 8.dp), strokeWidth = 2.dp)
+                        } else {
+                            Icon(Icons.Default.CheckCircle, contentDescription = null)
+                            Spacer(Modifier.width(8.dp))
+                        }
+                        Text("Save Default")
                     }
                 }
             }
 
             if (isLoading) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
-            } else if (printers.isEmpty()) {
-                EmptyPrinterState(onAdd = { editingPrinter = null; showEditor = true })
+            } else if (systemPrinters.isEmpty()) {
+                EmptyPrinterState(onRefresh = { loadPrinters() })
             } else {
                 LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    items(printers, key = { it.id }) { printer ->
-                        PrinterCard(
-                            printer = printer,
-                            onSetDefault = {
-                                scope.launch {
-                                    when (val result = repository.setDefaultPrinter(printer.id)) {
-                                        is Result.Success -> { message = "Default printer set to ${result.data.printerModelName}"; loadPrinters() }
-                                        is Result.Error -> message = result.message
-                                    }
-                                }
-                            },
-                            onEdit = { editingPrinter = printer; showEditor = true },
-                            onDelete = {
-                                scope.launch {
-                                    when (val result = repository.deletePrinter(printer.id)) {
-                                        is Result.Success -> { message = "Printer deleted"; loadPrinters() }
-                                        is Result.Error -> message = result.message
-                                    }
-                                }
-                            }
+                    items(systemPrinters, key = { it }) { printerName ->
+                        val configuredPrinter = configuredPrinters.firstOrNull {
+                            it.printerModelName.equals(printerName, ignoreCase = true)
+                        }
+                        SystemPrinterCard(
+                            printerName = printerName,
+                            configuredPrinter = configuredPrinter,
+                            selected = selectedPrinterName == printerName,
+                            onSelect = { selectedPrinterName = printerName }
                         )
                     }
                 }
             }
         }
-    }
-
-    if (showEditor) {
-        PrinterEditorDialog(
-            printer = editingPrinter,
-            onDismiss = { showEditor = false },
-            onSave = { request ->
-                scope.launch {
-                    val result = editingPrinter?.let { repository.updatePrinter(it.id, request) }
-                        ?: repository.createPrinter(request)
-                    when (result) {
-                        is Result.Success -> { message = "Printer saved"; showEditor = false; loadPrinters() }
-                        is Result.Error -> message = result.message
-                    }
-                }
-            }
-        )
     }
 
     message?.let { text ->
@@ -165,7 +164,7 @@ fun PrinterSettingsScreen(repository: PosRepository = PosRepository.getInstance(
 }
 
 @Composable
-private fun EmptyPrinterState(onAdd: () -> Unit) {
+private fun EmptyPrinterState(onRefresh: () -> Unit) {
     Card(
         modifier = Modifier.fillMaxWidth().padding(top = 32.dp),
         shape = RoundedCornerShape(22.dp),
@@ -177,27 +176,32 @@ private fun EmptyPrinterState(onAdd: () -> Unit) {
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Icon(Icons.Default.Print, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-            Text("No printer configured", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-            Text("Add the exact Windows printer name/model shown in Devices & Printers.")
-            Button(onClick = onAdd) { Text("Add Printer") }
+            Text("No system printer found", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+            Text(
+                "Install or connect a printer on this computer, then refresh this page.",
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Button(onClick = onRefresh) { Text("Refresh Printers") }
         }
     }
 }
 
 @Composable
-private fun PrinterCard(
-    printer: PrinterResponse,
-    onSetDefault: () -> Unit,
-    onEdit: () -> Unit,
-    onDelete: () -> Unit
+private fun SystemPrinterCard(
+    printerName: String,
+    configuredPrinter: PrinterResponse?,
+    selected: Boolean,
+    onSelect: () -> Unit
 ) {
-    val border = if (printer.defaultPrinter) {
+    val isDefault = configuredPrinter?.defaultPrinter == true && configuredPrinter.active
+    val border = if (selected || isDefault) {
         BorderStroke(1.dp, MaterialTheme.colorScheme.primary)
     } else {
         BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.18f))
     }
+
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onSelect),
         shape = RoundedCornerShape(18.dp),
         border = border,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
@@ -208,73 +212,31 @@ private fun PrinterCard(
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                RadioButton(selected = selected, onClick = onSelect)
                 Surface(shape = RoundedCornerShape(14.dp), color = MaterialTheme.colorScheme.primaryContainer) {
                     Icon(Icons.Default.Print, contentDescription = null, modifier = Modifier.padding(12.dp))
                 }
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(printer.printerModelName, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Text(printerName, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                     Text(
-                        if (printer.active) "Active" else "Inactive",
+                        when {
+                            isDefault -> "Saved as default POS printer"
+                            configuredPrinter?.active == true -> "Saved in database"
+                            configuredPrinter != null -> "Saved but inactive; saving will reactivate it"
+                            else -> "Detected from this system; saving will add it to database"
+                        },
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                if (printer.defaultPrinter) {
-                    FilledTonalButton(onClick = {}) {
-                        Icon(Icons.Default.CheckCircle, contentDescription = null)
-                        Spacer(Modifier.width(6.dp))
-                        Text("Default")
-                    }
-                } else {
-                    OutlinedButton(enabled = printer.active, onClick = onSetDefault) { Text("Set Default") }
+            if (isDefault) {
+                FilledTonalButton(onClick = onSelect) {
+                    Icon(Icons.Default.CheckCircle, contentDescription = null)
+                    Spacer(Modifier.width(6.dp))
+                    Text("Default")
                 }
-                IconButton(onClick = onEdit) { Icon(Icons.Default.Edit, contentDescription = "Edit") }
-                IconButton(onClick = onDelete) { Icon(Icons.Default.Delete, contentDescription = "Delete") }
             }
         }
     }
-}
-
-@Composable
-private fun PrinterEditorDialog(
-    printer: PrinterResponse?,
-    onDismiss: () -> Unit,
-    onSave: (PrinterRequest) -> Unit
-) {
-    var printerModelName by remember(printer?.id) { mutableStateOf(printer?.printerModelName.orEmpty()) }
-    var active by remember(printer?.id) { mutableStateOf(printer?.active ?: true) }
-    var defaultPrinter by remember(printer?.id) { mutableStateOf(printer?.defaultPrinter ?: false) }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(if (printer == null) "Add Printer" else "Edit Printer") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                OutlinedTextField(
-                    value = printerModelName,
-                    onValueChange = { printerModelName = it },
-                    label = { Text("Printer model/name") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Checkbox(checked = active, onCheckedChange = { active = it })
-                    Text("Active")
-                }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Checkbox(checked = defaultPrinter, onCheckedChange = { defaultPrinter = it })
-                    Text("Use as default POS printer")
-                }
-            }
-        },
-        confirmButton = {
-            Button(
-                enabled = printerModelName.isNotBlank(),
-                onClick = { onSave(PrinterRequest(printerModelName.trim(), defaultPrinter, active)) }
-            ) { Text("Save") }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
-    )
 }

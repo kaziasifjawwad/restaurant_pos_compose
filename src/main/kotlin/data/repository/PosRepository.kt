@@ -52,6 +52,9 @@ class PosRepository(
     private val _printersCache = MutableStateFlow<List<PrinterResponse>>(emptyList())
     val printersCache: StateFlow<List<PrinterResponse>> = _printersCache.asStateFlow()
 
+    private val _systemPrintersCache = MutableStateFlow<List<String>>(emptyList())
+    val systemPrintersCache: StateFlow<List<String>> = _systemPrintersCache.asStateFlow()
+
     private val _defaultPrinter = MutableStateFlow<PrinterResponse?>(null)
     val defaultPrinter: StateFlow<PrinterResponse?> = _defaultPrinter.asStateFlow()
 
@@ -156,6 +159,12 @@ class PosRepository(
         return result
     }
 
+    suspend fun refreshSystemPrinters(): Result<List<String>> {
+        val result = api.getSystemPrinters()
+        result.onSuccess { printers -> _systemPrintersCache.value = printers }
+        return result
+    }
+
     suspend fun getAllPrinters(): Result<List<PrinterResponse>> {
         val result = api.getAllPrinters()
         result.onSuccess { printers -> setPrinterCaches(printers) }
@@ -177,6 +186,44 @@ class PosRepository(
     suspend fun updatePrinter(id: Long, request: PrinterRequest): Result<PrinterResponse> {
         val result = api.updatePrinter(id, request)
         result.onSuccess { refreshPrinters() }
+        return result
+    }
+
+    suspend fun saveSystemPrinterAsDefault(printerName: String): Result<PrinterResponse> {
+        val normalizedName = printerName.trim()
+        if (normalizedName.isBlank()) return Result.Error("Select a printer first")
+
+        val existingPrinter = _printersCache.value.firstOrNull {
+            it.printerModelName.equals(normalizedName, ignoreCase = true)
+        }
+
+        val result = if (existingPrinter != null) {
+            if (existingPrinter.active) {
+                api.setDefaultPrinter(existingPrinter.id)
+            } else {
+                api.updatePrinter(
+                    existingPrinter.id,
+                    PrinterRequest(
+                        printerModelName = existingPrinter.printerModelName,
+                        defaultPrinter = true,
+                        active = true
+                    )
+                )
+            }
+        } else {
+            api.createPrinter(
+                PrinterRequest(
+                    printerModelName = normalizedName,
+                    defaultPrinter = true,
+                    active = true
+                )
+            )
+        }
+
+        result.onSuccess { printer ->
+            _defaultPrinter.value = printer
+            getAllPrinters()
+        }
         return result
     }
 
@@ -234,6 +281,7 @@ class PosRepository(
     suspend fun loadLookupData(): Result<Unit> {
         refreshPaymentMethods().onError { error -> println("[$TAG] Failed to load payment methods: ${error.message}") }
         refreshPrinters().onError { error -> println("[$TAG] Failed to load printers: ${error.message}") }
+        refreshSystemPrinters().onError { error -> println("[$TAG] Failed to load system printers: ${error.message}") }
         api.getWaiters().onSuccess { _waitersCache.value = it }.onError { error -> println("[$TAG] Failed to load waiters: ${error.message}") }
         api.getTables().onSuccess { _tablesCache.value = it }.onError { error -> println("[$TAG] Failed to load tables: ${error.message}") }
         api.getFoodItemsShortInfo().onSuccess { _foodItemsCache.value = it }.onError { error -> println("[$TAG] Failed to load food items: ${error.message}") }
@@ -244,6 +292,7 @@ class PosRepository(
     suspend fun loadStartupConfiguration(): Result<Unit> {
         refreshPaymentMethods().onError { error -> println("[$TAG] Failed to load payment methods: ${error.message}") }
         refreshPrinters().onError { error -> println("[$TAG] Failed to load printers: ${error.message}") }
+        refreshSystemPrinters().onError { error -> println("[$TAG] Failed to load system printers: ${error.message}") }
         return Result.Success(Unit)
     }
 
@@ -259,6 +308,7 @@ class PosRepository(
         _beveragesCache.value = emptyList()
         _paymentMethodsCache.value = emptyList()
         _printersCache.value = emptyList()
+        _systemPrintersCache.value = emptyList()
         _defaultPrinter.value = null
     }
 }

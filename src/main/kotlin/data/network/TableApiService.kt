@@ -43,7 +43,7 @@ class TableApiService {
         }.body()
     }
 
-    suspend fun getTableById(id: Long): TableResponse {
+    suspend fun getTableById(id: String): TableResponse {
         return client.get("$baseUrl/table/$id") { auth() }.body()
     }
 
@@ -57,7 +57,7 @@ class TableApiService {
         throw TableApiException(readError(response, "Table creation failed"))
     }
 
-    suspend fun updateTable(id: Long, request: TableUpdateRequest): TableResponse {
+    suspend fun updateTable(id: String, request: TableUpdateRequest): TableResponse {
         val response: HttpResponse = client.put("$baseUrl/table/$id") {
             auth()
             contentType(ContentType.Application.Json)
@@ -67,7 +67,7 @@ class TableApiService {
         throw TableApiException(readError(response, "Table update failed"))
     }
 
-    suspend fun deleteTable(id: Long): Boolean {
+    suspend fun deleteTable(id: String): Boolean {
         val response: HttpResponse = client.delete("$baseUrl/table/$id") { auth() }
         if (response.status.isSuccess()) return true
         throw TableApiException(readError(response, "Table delete failed"))
